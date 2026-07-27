@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
+import { Logo } from "@/components/layout/logo";
 
 const NAV_LINKS = [
   { href: "/#how-it-works", label: "How it works" },
@@ -10,11 +11,9 @@ const NAV_LINKS = [
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur">
-      <Container className="flex h-16 items-center justify-between">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
-          Fabrik
-        </Link>
+    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
+      <Container className="flex h-14 items-center justify-between">
+        <Logo />
 
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
@@ -28,7 +27,7 @@ export function Header() {
           ))}
         </nav>
 
-        <Button size="sm" render={<Link href="/#upload" />}>
+        <Button size="sm" nativeButton={false} render={<Link href="/#upload" />}>
           Upload model
         </Button>
       </Container>

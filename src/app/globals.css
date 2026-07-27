@@ -26,6 +26,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -35,12 +36,20 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --radius-sm: calc(var(--radius) * 0.58);
+  --radius-md: calc(var(--radius) * 0.78);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
@@ -49,76 +58,68 @@
 }
 
 /*
- * Design tokens. One accent color (--primary), warm neutral background,
- * dark warm-gray typography. Change values here to restyle the whole app.
+ * Design tokens for the dark-only theme. This is a layered dark system, not
+ * an inverted light one: background < surface (card) < secondary surface
+ * (popover/muted) < elevated surface, each a distinct step up in lightness,
+ * with a single indigo accent reserved for actions/selection/emphasis.
+ * Change values here to restyle the whole app.
  */
 :root {
-  --background: oklch(0.985 0.004 75);
-  --foreground: oklch(0.19 0.01 60);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.01 60);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.01 60);
-  --primary: oklch(0.58 0.19 35);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.955 0.006 75);
-  --secondary-foreground: oklch(0.19 0.01 60);
-  --muted: oklch(0.955 0.006 75);
-  --muted-foreground: oklch(0.5 0.01 60);
-  --accent: oklch(0.94 0.03 40);
-  --accent-foreground: oklch(0.3 0.08 35);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.008 70);
-  --input: oklch(0.9 0.008 70);
-  --ring: oklch(0.58 0.19 35 / 45%);
-  --chart-1: oklch(0.58 0.19 35);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.98 0.004 75);
-  --sidebar-foreground: oklch(0.19 0.01 60);
-  --sidebar-primary: oklch(0.58 0.19 35);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.955 0.006 75);
-  --sidebar-accent-foreground: oklch(0.19 0.01 60);
-  --sidebar-border: oklch(0.9 0.008 70);
-  --sidebar-ring: oklch(0.58 0.19 35 / 45%);
-}
+  --background: #0a0b0d;
+  --foreground: #f5f7fa;
 
-.dark {
-  --background: oklch(0.16 0.008 60);
-  --foreground: oklch(0.96 0.004 75);
-  --card: oklch(0.2 0.008 60);
-  --card-foreground: oklch(0.96 0.004 75);
-  --popover: oklch(0.2 0.008 60);
-  --popover-foreground: oklch(0.96 0.004 75);
-  --primary: oklch(0.66 0.18 35);
-  --primary-foreground: oklch(0.15 0.01 60);
-  --secondary: oklch(0.26 0.008 60);
-  --secondary-foreground: oklch(0.96 0.004 75);
-  --muted: oklch(0.26 0.008 60);
-  --muted-foreground: oklch(0.68 0.01 70);
-  --accent: oklch(0.3 0.04 40);
-  --accent-foreground: oklch(0.92 0.02 40);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.66 0.18 35 / 45%);
-  --chart-1: oklch(0.66 0.18 35);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.2 0.008 60);
-  --sidebar-foreground: oklch(0.96 0.004 75);
-  --sidebar-primary: oklch(0.66 0.18 35);
-  --sidebar-primary-foreground: oklch(0.15 0.01 60);
-  --sidebar-accent: oklch(0.26 0.008 60);
-  --sidebar-accent-foreground: oklch(0.96 0.004 75);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.66 0.18 35 / 45%);
+  --card: #111318;
+  --card-foreground: #f5f7fa;
+
+  --popover: #171a20;
+  --popover-foreground: #f5f7fa;
+
+  --secondary: #171a20;
+  --secondary-foreground: #f5f7fa;
+
+  --muted: #171a20;
+  --muted-foreground: #a5acb8;
+
+  /* Neutral highlight surface used for hover/selected states, not the brand accent. */
+  --accent: #1d2128;
+  --accent-foreground: #f5f7fa;
+  --surface-elevated: #1d2128;
+
+  /* Brand accent — electric indigo. Reserved for primary actions, active nav,
+     progress, selected controls, and important values. */
+  --primary: #5b6cff;
+  --primary-hover: #7080ff;
+  --primary-foreground: #f5f7fa;
+
+  --destructive: #e5615f;
+  --success: #4cae7d;
+  --success-foreground: #0a0b0d;
+  --warning: #d9a441;
+  --warning-foreground: #0a0b0d;
+  --info: #5b8cff;
+  --info-foreground: #0a0b0d;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: rgba(91, 108, 255, 0.45);
+
+  --chart-1: #5b6cff;
+  --chart-2: #a5acb8;
+  --chart-3: #707784;
+  --chart-4: #4cae7d;
+  --chart-5: #d9a441;
+
+  --radius: 0.85rem;
+
+  --sidebar: #111318;
+  --sidebar-foreground: #f5f7fa;
+  --sidebar-primary: #5b6cff;
+  --sidebar-primary-foreground: #f5f7fa;
+  --sidebar-accent: #1d2128;
+  --sidebar-accent-foreground: #f5f7fa;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(91, 108, 255, 0.45);
 }
 
 @layer base {
@@ -130,5 +131,6 @@
   }
   html {
     @apply font-sans;
+    color-scheme: dark;
   }
 }
