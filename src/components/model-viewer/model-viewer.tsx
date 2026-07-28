@@ -184,6 +184,7 @@ export function ModelViewer({
           type="button"
           onClick={() => controlsRef.current?.reset()}
           title="Reset view"
+          aria-label="Reset view"
           className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-elevated hover:text-foreground"
         >
           <RotateCcw className="size-3.5" />
@@ -192,6 +193,7 @@ export function ModelViewer({
           type="button"
           onClick={toggleFullscreen}
           title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-elevated hover:text-foreground"
         >
           {isFullscreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}

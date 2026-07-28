@@ -17,8 +17,8 @@ export function QuoteActions({ token }: { token: string }) {
   if (showDecline) {
     return (
       <form action={declineQuote.bind(null, token)} className="flex flex-col gap-4">
-        <div>
-          <p className="text-sm font-medium">Why are you declining? (optional)</p>
+        <fieldset>
+          <legend className="text-sm font-medium">Why are you declining? (optional)</legend>
           <div className="mt-2 flex flex-col gap-2">
             {DECLINE_REASONS.map((value) => (
               <label key={value} className="flex items-center gap-2 text-sm">
@@ -39,10 +39,11 @@ export function QuoteActions({ token }: { token: string }) {
               name="reasonOther"
               placeholder="Tell us more (optional)"
               rows={2}
+              aria-label="Additional details"
               className="mt-2"
             />
           )}
-        </div>
+        </fieldset>
 
         <div className="flex gap-3">
           <DeclineSubmitButton />

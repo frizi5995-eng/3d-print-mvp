@@ -96,8 +96,9 @@ export default async function AdminRequestsPage({
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                  No requests yet. When customers submit manufacturing requests, they will appear
-                  here.
+                  {status !== "all" || search
+                    ? "No requests match this search or filter."
+                    : "No requests yet. When customers submit manufacturing requests, they will appear here."}
                 </TableCell>
               </TableRow>
             ) : (
