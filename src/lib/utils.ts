@@ -22,3 +22,7 @@ export function formatDateTime(value: string | Date) {
     minute: "2-digit",
   }).format(date)
 }
+
+export function isPast(value: string) {
+  return new Date(value).getTime() < Date.now()
+}

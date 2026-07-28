@@ -9,8 +9,10 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { PricingPanel } from "@/components/admin/pricing-panel";
 import { StatusActions } from "@/components/admin/status-actions";
 import { HistoryList } from "@/components/admin/history-list";
+import { CopyQuoteLink } from "@/components/admin/copy-quote-link";
 import { formatDate } from "@/lib/utils";
 import { STATUS_LABELS } from "@/lib/constants";
+import { getAppUrl } from "@/lib/env";
 import type { ManufacturingRequest, Model, ModelFileType, StatusHistoryEntry } from "@/types";
 
 export default async function AdminRequestDetailPage({
@@ -138,6 +140,12 @@ export default async function AdminRequestDetailPage({
                 </p>
               )}
           </Panel>
+
+          {request.quote_token && (
+            <Panel title="Customer quote link">
+              <CopyQuoteLink url={`${getAppUrl()}/q/${request.quote_token}`} />
+            </Panel>
+          )}
 
           <Panel title="History">
             <HistoryList history={history} />
