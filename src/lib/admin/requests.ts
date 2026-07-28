@@ -1,6 +1,8 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { RequestStatus } from "@/types";
+import { computeTotals } from "@/lib/admin/money";
+import { STATUS_ORDER } from "@/lib/constants";
+import type { DeclineReason, RequestStatus } from "@/types";
 
 const PAGE_SIZE = 20;
 
@@ -84,6 +86,97 @@ export async function listRequests({
     total: count ?? 0,
     page,
     pageSize: PAGE_SIZE,
+  };
+}
+
+export interface RequestStats {
+  total: number;
+  byStatus: Record<RequestStatus, number>;
+  quotesPrepared: number;
+  accepted: number;
+  declined: number;
+  /** null when no quote has been accepted or declined yet — not 0%. */
+  acceptanceRate: number | null;
+  declineReasons: Partial<Record<DeclineReason, number>>;
+  /** null when no request has both cost and price entered yet. */
+  averageMargin: number | null;
+  /** Age in days of the oldest request that isn't declined/completed. null if none. */
+  oldestOpenAgeDays: number | null;
+}
+
+const TERMINAL_STATUSES: RequestStatus[] = ["declined", "completed"];
+
+export async function getRequestStats(): Promise<RequestStats> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("manufacturing_requests")
+    .select(
+      "status, quote_token, decline_reason, created_at, production_cost, production_shipping_cost, other_cost, customer_manufacturing_price, customer_shipping_price"
+    );
+
+  const rows = data ?? [];
+
+  const byStatus = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as Record<
+    RequestStatus,
+    number
+  >;
+  const declineReasons: Partial<Record<DeclineReason, number>> = {};
+  let quotesPrepared = 0;
+  const margins: number[] = [];
+  let oldestOpenCreatedAt: string | null = null;
+
+  for (const row of rows) {
+    const status = row.status as RequestStatus;
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
+
+    if (row.quote_token) quotesPrepared += 1;
+
+    if (status === "declined" && row.decline_reason) {
+      const reason = row.decline_reason as DeclineReason;
+      declineReasons[reason] = (declineReasons[reason] ?? 0) + 1;
+    }
+
+    const hasFullCosting =
+      row.production_cost !== null &&
+      row.production_shipping_cost !== null &&
+      row.other_cost !== null &&
+      row.customer_manufacturing_price !== null &&
+      row.customer_shipping_price !== null;
+    if (hasFullCosting) {
+      margins.push(
+        computeTotals({
+          productionCost: row.production_cost,
+          productionShippingCost: row.production_shipping_cost,
+          otherCost: row.other_cost,
+          customerManufacturingPrice: row.customer_manufacturing_price,
+          customerShippingPrice: row.customer_shipping_price,
+        }).grossMargin
+      );
+    }
+
+    if (!TERMINAL_STATUSES.includes(status)) {
+      if (!oldestOpenCreatedAt || row.created_at < oldestOpenCreatedAt) {
+        oldestOpenCreatedAt = row.created_at as string;
+      }
+    }
+  }
+
+  const accepted = byStatus.accepted ?? 0;
+  const declined = byStatus.declined ?? 0;
+  const decided = accepted + declined;
+
+  return {
+    total: rows.length,
+    byStatus,
+    quotesPrepared,
+    accepted,
+    declined,
+    acceptanceRate: decided > 0 ? accepted / decided : null,
+    declineReasons,
+    averageMargin: margins.length > 0 ? margins.reduce((a, b) => a + b, 0) / margins.length : null,
+    oldestOpenAgeDays: oldestOpenCreatedAt
+      ? Math.floor((Date.now() - new Date(oldestOpenCreatedAt).getTime()) / (1000 * 60 * 60 * 24))
+      : null,
   };
 }
 

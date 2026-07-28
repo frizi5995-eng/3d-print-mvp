@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { listRequests } from "@/lib/admin/requests";
+import { listRequests, getRequestStats } from "@/lib/admin/requests";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { RequestsOverview } from "@/components/admin/requests-overview";
 import { STATUS_ORDER, STATUS_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,10 @@ export default async function AdminRequestsPage({
   const search = params.q ?? "";
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { rows, total, pageSize } = await listRequests({ status, search, page });
+  const [{ rows, total, pageSize }, stats] = await Promise.all([
+    listRequests({ status, search, page }),
+    getRequestStats(),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const buildHref = (overrides: Record<string, string | undefined>) => {
@@ -41,6 +45,8 @@ export default async function AdminRequestsPage({
   return (
     <div className="flex flex-col gap-6 p-6">
       <h1 className="text-xl font-semibold tracking-tight">Requests</h1>
+
+      <RequestsOverview stats={stats} />
 
       <form className="flex flex-wrap items-center gap-3" action="/admin/requests" method="GET">
         {status !== "all" && <input type="hidden" name="status" value={status} />}
