@@ -24,10 +24,10 @@ create table models (
   filename text not null,
   storage_path text not null,
   file_type text not null check (file_type in ('stl', 'obj', '3mf')),
-  file_size bigint not null,
-  width numeric,
-  height numeric,
-  depth numeric,
+  file_size bigint not null check (file_size > 0),
+  width numeric check (width > 0),
+  height numeric check (height > 0),
+  depth numeric check (depth > 0),
   created_at timestamptz not null default now()
 );
 
@@ -53,12 +53,12 @@ create table manufacturing_requests (
   model_id uuid not null references models(id),
 
   manufacturer_name text,
-  production_cost numeric,
-  production_shipping_cost numeric,
-  other_cost numeric,
+  production_cost numeric(12, 2) check (production_cost >= 0),
+  production_shipping_cost numeric(12, 2) check (production_shipping_cost >= 0),
+  other_cost numeric(12, 2) check (other_cost >= 0),
 
-  customer_manufacturing_price numeric,
-  customer_shipping_price numeric,
+  customer_manufacturing_price numeric(12, 2) check (customer_manufacturing_price >= 0),
+  customer_shipping_price numeric(12, 2) check (customer_shipping_price >= 0),
 
   decline_reason text,
   decline_reason_other text,

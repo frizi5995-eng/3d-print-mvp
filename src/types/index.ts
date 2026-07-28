@@ -63,6 +63,7 @@ export interface ManufacturingRequest {
   decline_reason_other: string | null;
 
   quote_token: string | null;
+  quote_expires_at: string | null;
 
   created_at: string;
   updated_at: string;
