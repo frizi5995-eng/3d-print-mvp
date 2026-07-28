@@ -5,9 +5,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getAppUrl } from "@/lib/env";
+import { sendQuoteReadyEmail } from "@/lib/email/quote-ready";
 import type { RequestStatus } from "@/types";
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
 export interface PricingFormState {
   status: "idle" | "success" | "error";
@@ -125,7 +127,7 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
   const { data: request } = await supabase
     .from("manufacturing_requests")
     .select(
-      "status, customer_manufacturing_price, customer_shipping_price, customer_name, customer_email, country, postal_code, quote_token"
+      "status, reference_number, customer_manufacturing_price, customer_shipping_price, customer_name, customer_email, country, postal_code, quote_token, quote_expires_at"
     )
     .eq("id", requestId)
     .maybeSingle();
@@ -160,5 +162,29 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
 
   revalidatePath(`/admin/requests/${requestId}`);
   revalidatePath("/admin/requests");
-  return { ok: true };
+
+  const finalToken = update.quote_token ?? request.quote_token!;
+  const finalExpiresAt = update.quote_expires_at ?? request.quote_expires_at!;
+
+  // Best-effort only — email delivery never blocks or fails this action.
+  // "Copy quote link" on this page always works regardless of the outcome.
+  const emailResult = await sendQuoteReadyEmail({
+    customerName: request.customer_name,
+    customerEmail: request.customer_email,
+    referenceNumber: request.reference_number,
+    total: request.customer_manufacturing_price + request.customer_shipping_price,
+    expiresAt: finalExpiresAt,
+    quoteUrl: `${getAppUrl()}/q/${finalToken}`,
+  }).catch((): { sent: false; reason: "error"; message: string } => ({
+    sent: false,
+    reason: "error",
+    message: "unexpected",
+  }));
+
+  return {
+    ok: true,
+    message: emailResult.sent
+      ? "Quote prepared and emailed to the customer."
+      : "Quote prepared. Email not sent (not configured yet) — copy the link below.",
+  };
 }

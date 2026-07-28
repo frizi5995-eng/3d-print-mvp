@@ -32,7 +32,7 @@ export function StatusActions({
       if (!result.ok) {
         toast.error(result.error);
       } else {
-        toast.success("Request updated.");
+        toast.success(result.message ?? "Request updated.");
         router.refresh();
       }
       setPendingAction(null);
