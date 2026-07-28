@@ -175,16 +175,24 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
     total: request.customer_manufacturing_price + request.customer_shipping_price,
     expiresAt: finalExpiresAt,
     quoteUrl: `${getAppUrl()}/q/${finalToken}`,
-  }).catch((): { sent: false; reason: "error"; message: string } => ({
+  }).catch((err: unknown): { sent: false; reason: "error"; message: string } => ({
     sent: false,
     reason: "error",
-    message: "unexpected",
+    message: err instanceof Error ? err.message : "unexpected",
   }));
+
+  if (!emailResult.sent && emailResult.reason === "error") {
+    // Server-side only — never surfaced to the client. Useful once a real
+    // key is configured and a send genuinely fails (bad domain, rate limit).
+    console.error(`Quote email failed for request ${requestId}:`, emailResult.message);
+  }
 
   return {
     ok: true,
     message: emailResult.sent
       ? "Quote prepared and emailed to the customer."
-      : "Quote prepared. Email not sent (not configured yet) — copy the link below.",
+      : emailResult.reason === "not_configured"
+        ? "Quote prepared. Email not sent (not configured yet) — copy the link below."
+        : "Quote prepared, but the email failed to send. Copy the link below.",
   };
 }
