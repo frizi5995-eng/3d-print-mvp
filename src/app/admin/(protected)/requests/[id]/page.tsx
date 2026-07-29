@@ -9,7 +9,9 @@ import { isStripeConfigured } from "@/lib/stripe/client";
 import { getInvoiceDisplay } from "@/lib/stripe/invoicing";
 import { listQuotesForRequest } from "@/lib/admin/supplier-quotes";
 import { listSuppliers } from "@/lib/admin/suppliers";
+import { getPricingRecommendationForRequest } from "@/lib/admin/pricing-engine";
 import { SupplierOptions } from "@/components/admin/supplier-options";
+import { PricingRecommendationPanel } from "@/components/admin/pricing-recommendation";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { PaymentStatusBadge } from "@/components/admin/payment-status-badge";
@@ -42,8 +44,16 @@ export default async function AdminRequestDetailPage({
   const history = result.history as unknown as StatusHistoryEntry[];
 
   const supabase = createServiceClient();
-  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts, settings, invoice, supplierQuotes, activeSuppliers] =
-    await Promise.all([
+  const [
+    { data: previewSigned },
+    { data: downloadSigned },
+    customerCounts,
+    settings,
+    invoice,
+    supplierQuotes,
+    activeSuppliers,
+    pricingRecommendation,
+  ] = await Promise.all([
       supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
       supabase.storage
         .from(MODEL_STORAGE_BUCKET)
@@ -53,6 +63,7 @@ export default async function AdminRequestDetailPage({
       request.stripe_invoice_id ? getInvoiceDisplay(request.stripe_invoice_id) : Promise.resolve(null),
       listQuotesForRequest(request.id),
       listSuppliers({ active: "active" }),
+      getPricingRecommendationForRequest(request.id),
     ]);
 
   return (
@@ -230,6 +241,10 @@ export default async function AdminRequestDetailPage({
               suppliers={activeSuppliers}
               selectedQuoteId={request.selected_supplier_quote_id}
             />
+          </Panel>
+
+          <Panel title="Pricing recommendation">
+            <PricingRecommendationPanel requestId={request.id} recommendation={pricingRecommendation} />
           </Panel>
 
           <Panel title="Production & customer quote">

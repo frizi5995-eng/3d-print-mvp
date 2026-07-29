@@ -27,6 +27,12 @@ export async function saveSettings(
     defaultMaterial: String(formData.get("defaultMaterial") ?? ""),
     supportEmail: String(formData.get("supportEmail") ?? ""),
     companyDisplayName: String(formData.get("companyDisplayName") ?? ""),
+    targetMarginPercent: Number(formData.get("targetMarginPercent")),
+    highMarginPercent: Number(formData.get("highMarginPercent")),
+    contingencyPercent: Number(formData.get("contingencyPercent")),
+    packagingCostPerOrder: Number(formData.get("packagingCostPerOrder")),
+    otherOperationalCostPerOrder: Number(formData.get("otherOperationalCostPerOrder")),
+    paymentProcessingFeePercent: Number(formData.get("paymentProcessingFeePercent")),
   };
 
   const errors = validateSettings(input);

@@ -8,6 +8,13 @@ export interface AppSettings {
   defaultMaterial: (typeof MATERIALS)[number];
   supportEmail: string;
   companyDisplayName: string;
+  /** Pricing engine (M28) — floor uses minMarginWarningPercent above. */
+  targetMarginPercent: number;
+  highMarginPercent: number;
+  contingencyPercent: number;
+  packagingCostPerOrder: number;
+  otherOperationalCostPerOrder: number;
+  paymentProcessingFeePercent: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -16,6 +23,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMaterial: "PLA",
   supportEmail: "hello@fabrik.example",
   companyDisplayName: "Fabrik",
+  targetMarginPercent: 30,
+  highMarginPercent: 40,
+  contingencyPercent: 5,
+  packagingCostPerOrder: 2,
+  otherOperationalCostPerOrder: 0,
+  paymentProcessingFeePercent: 1.5,
 };
 
 const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
@@ -24,6 +37,12 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   defaultMaterial: "default_material",
   supportEmail: "support_email",
   companyDisplayName: "company_display_name",
+  targetMarginPercent: "target_margin_percent",
+  highMarginPercent: "high_margin_percent",
+  contingencyPercent: "contingency_percent",
+  packagingCostPerOrder: "packaging_cost_per_order",
+  otherOperationalCostPerOrder: "other_operational_cost_per_order",
+  paymentProcessingFeePercent: "payment_processing_fee_percent",
 };
 
 /** Falls back to DEFAULT_SETTINGS for any key not yet stored (or the table being empty). */
@@ -47,6 +66,24 @@ export async function getSettings(): Promise<AppSettings> {
     companyDisplayName:
       (stored.get(SETTINGS_KEYS.companyDisplayName) as string | undefined) ??
       DEFAULT_SETTINGS.companyDisplayName,
+    targetMarginPercent:
+      (stored.get(SETTINGS_KEYS.targetMarginPercent) as number | undefined) ??
+      DEFAULT_SETTINGS.targetMarginPercent,
+    highMarginPercent:
+      (stored.get(SETTINGS_KEYS.highMarginPercent) as number | undefined) ??
+      DEFAULT_SETTINGS.highMarginPercent,
+    contingencyPercent:
+      (stored.get(SETTINGS_KEYS.contingencyPercent) as number | undefined) ??
+      DEFAULT_SETTINGS.contingencyPercent,
+    packagingCostPerOrder:
+      (stored.get(SETTINGS_KEYS.packagingCostPerOrder) as number | undefined) ??
+      DEFAULT_SETTINGS.packagingCostPerOrder,
+    otherOperationalCostPerOrder:
+      (stored.get(SETTINGS_KEYS.otherOperationalCostPerOrder) as number | undefined) ??
+      DEFAULT_SETTINGS.otherOperationalCostPerOrder,
+    paymentProcessingFeePercent:
+      (stored.get(SETTINGS_KEYS.paymentProcessingFeePercent) as number | undefined) ??
+      DEFAULT_SETTINGS.paymentProcessingFeePercent,
   };
 }
 
@@ -56,6 +93,12 @@ export interface SettingsUpdateInput {
   defaultMaterial: string;
   supportEmail: string;
   companyDisplayName: string;
+  targetMarginPercent: number;
+  highMarginPercent: number;
+  contingencyPercent: number;
+  packagingCostPerOrder: number;
+  otherOperationalCostPerOrder: number;
+  paymentProcessingFeePercent: number;
 }
 
 export interface SettingsValidationError {
@@ -89,6 +132,35 @@ export function validateSettings(input: SettingsUpdateInput): SettingsValidation
     errors.push({ field: "companyDisplayName", message: "Company display name must be 1-100 characters." });
   }
 
+  const percentFields: [keyof SettingsUpdateInput, string][] = [
+    ["targetMarginPercent", "Target margin"],
+    ["highMarginPercent", "High margin"],
+    ["contingencyPercent", "Contingency"],
+    ["paymentProcessingFeePercent", "Payment processing allowance"],
+  ];
+  for (const [field, label] of percentFields) {
+    const value = input[field] as number;
+    if (!Number.isFinite(value) || value < 0 || value >= 100) {
+      errors.push({ field, message: `${label} must be a percentage between 0 and 99.9.` });
+    }
+  }
+  if (input.targetMarginPercent < input.minMarginWarningPercent) {
+    errors.push({ field: "targetMarginPercent", message: "Target margin must be at or above the minimum margin warning." });
+  }
+  if (input.highMarginPercent < input.targetMarginPercent) {
+    errors.push({ field: "highMarginPercent", message: "High margin must be at or above the target margin." });
+  }
+  const costFields: [keyof SettingsUpdateInput, string][] = [
+    ["packagingCostPerOrder", "Packaging cost"],
+    ["otherOperationalCostPerOrder", "Other operational cost"],
+  ];
+  for (const [field, label] of costFields) {
+    const value = input[field] as number;
+    if (!Number.isFinite(value) || value < 0) {
+      errors.push({ field, message: `${label} must be a non-negative amount.` });
+    }
+  }
+
   return errors;
 }
 
@@ -100,6 +172,12 @@ export async function updateSettings(input: SettingsUpdateInput): Promise<void> 
     { key: SETTINGS_KEYS.defaultMaterial, value: input.defaultMaterial },
     { key: SETTINGS_KEYS.supportEmail, value: input.supportEmail.trim() },
     { key: SETTINGS_KEYS.companyDisplayName, value: input.companyDisplayName.trim() },
+    { key: SETTINGS_KEYS.targetMarginPercent, value: input.targetMarginPercent },
+    { key: SETTINGS_KEYS.highMarginPercent, value: input.highMarginPercent },
+    { key: SETTINGS_KEYS.contingencyPercent, value: input.contingencyPercent },
+    { key: SETTINGS_KEYS.packagingCostPerOrder, value: input.packagingCostPerOrder },
+    { key: SETTINGS_KEYS.otherOperationalCostPerOrder, value: input.otherOperationalCostPerOrder },
+    { key: SETTINGS_KEYS.paymentProcessingFeePercent, value: input.paymentProcessingFeePercent },
   ];
   const { error } = await supabase.from("app_settings").upsert(rows, { onConflict: "key" });
   if (error) throw error;

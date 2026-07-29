@@ -83,6 +83,30 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
         <p className="text-xs text-muted-foreground">Used in the signature of quote-ready emails.</p>
       </div>
 
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <PctField name="targetMarginPercent" label="Target margin %" defaultValue={settings.targetMarginPercent} />
+        <PctField name="highMarginPercent" label="High margin %" defaultValue={settings.highMarginPercent} />
+        <PctField name="contingencyPercent" label="Contingency %" defaultValue={settings.contingencyPercent} />
+        <PctField
+          name="paymentProcessingFeePercent"
+          label="Payment processing %"
+          defaultValue={settings.paymentProcessingFeePercent}
+        />
+        <PctField
+          name="packagingCostPerOrder"
+          label="Packaging € / order"
+          defaultValue={settings.packagingCostPerOrder}
+          step="0.01"
+        />
+        <PctField
+          name="otherOperationalCostPerOrder"
+          label="Other cost € / order"
+          defaultValue={settings.otherOperationalCostPerOrder}
+          step="0.01"
+        />
+      </div>
+      <p className="-mt-3 text-xs text-muted-foreground">Used by the pricing recommendation on request detail pages.</p>
+
       {state.status === "error" && (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.error}</p>
       )}
@@ -94,5 +118,24 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
         {state.status === "success" && <span className="text-sm text-success">Saved</span>}
       </div>
     </form>
+  );
+}
+
+function PctField({
+  name,
+  label,
+  defaultValue,
+  step = "0.1",
+}: {
+  name: string;
+  label: string;
+  defaultValue: number;
+  step?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={name}>{label}</Label>
+      <Input id={name} name={name} type="number" min={0} step={step} defaultValue={defaultValue} />
+    </div>
   );
 }
