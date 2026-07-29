@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { TurnstileWidget } from "@/components/quote/turnstile-widget";
 import { COLORS, MATERIALS } from "@/lib/constants";
 import { createManufacturingRequest, type CreateRequestState } from "@/app/(site)/quote/actions";
 
@@ -24,6 +25,7 @@ export function QuoteForm({ modelId }: { modelId: string }) {
   const [quantity, setQuantity] = useState(1);
   const [color, setColor] = useState<string>("White");
   const [sizeMode, setSizeMode] = useState<"original" | "custom">("original");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   const fieldError = (name: string) => state.fieldErrors?.[name];
 
@@ -236,6 +238,9 @@ export function QuoteForm({ modelId }: { modelId: string }) {
           </div>
         </div>
       </fieldset>
+
+      <input type="hidden" name="turnstileToken" value={turnstileToken ?? ""} />
+      <TurnstileWidget onToken={setTurnstileToken} />
 
       {state.error && (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">

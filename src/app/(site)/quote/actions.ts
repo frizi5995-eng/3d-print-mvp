@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/customer";
+import { getClientIpHash, checkSubmissionRateLimit } from "@/lib/rate-limit";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 import { COLORS, MATERIALS } from "@/lib/constants";
 
 const requestSchema = z.object({
@@ -20,6 +22,7 @@ const requestSchema = z.object({
   customerPhone: z.string().max(40).optional(),
   country: z.string().min(1).max(80),
   postalCode: z.string().min(1).max(20),
+  turnstileToken: z.string().optional(),
 });
 
 export interface CreateRequestState {
@@ -58,6 +61,17 @@ export async function createManufacturingRequest(
     ? data.material
     : "PLA";
 
+  const isHuman = await verifyTurnstileToken(data.turnstileToken ?? null);
+  if (!isHuman) {
+    return { error: "Verification failed. Please try again." };
+  }
+
+  const ipHash = await getClientIpHash();
+  const rateLimit = await checkSubmissionRateLimit(ipHash, data.customerEmail.trim());
+  if (rateLimit.limited) {
+    return { error: rateLimit.message };
+  }
+
   const supabase = createServiceClient();
 
   const { data: model } = await supabase
@@ -89,6 +103,7 @@ export async function createManufacturingRequest(
       country: data.country.trim(),
       postal_code: data.postalCode.trim(),
       customer_user_id: currentUser?.id ?? null,
+      submission_ip_hash: ipHash,
     })
     .select("reference_number")
     .single();
