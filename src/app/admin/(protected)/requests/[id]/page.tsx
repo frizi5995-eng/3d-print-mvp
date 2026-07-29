@@ -7,6 +7,9 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
 import { isStripeConfigured } from "@/lib/stripe/client";
 import { getInvoiceDisplay } from "@/lib/stripe/invoicing";
+import { listQuotesForRequest } from "@/lib/admin/supplier-quotes";
+import { listSuppliers } from "@/lib/admin/suppliers";
+import { SupplierOptions } from "@/components/admin/supplier-options";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { PaymentStatusBadge } from "@/components/admin/payment-status-badge";
@@ -39,15 +42,18 @@ export default async function AdminRequestDetailPage({
   const history = result.history as unknown as StatusHistoryEntry[];
 
   const supabase = createServiceClient();
-  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts, settings, invoice] = await Promise.all([
-    supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
-    supabase.storage
-      .from(MODEL_STORAGE_BUCKET)
-      .createSignedUrl(model.storage_path, 300, { download: model.filename }),
-    getCustomerRequestCounts(request.customer_user_id, request.customer_email),
-    getSettings(),
-    request.stripe_invoice_id ? getInvoiceDisplay(request.stripe_invoice_id) : Promise.resolve(null),
-  ]);
+  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts, settings, invoice, supplierQuotes, activeSuppliers] =
+    await Promise.all([
+      supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
+      supabase.storage
+        .from(MODEL_STORAGE_BUCKET)
+        .createSignedUrl(model.storage_path, 300, { download: model.filename }),
+      getCustomerRequestCounts(request.customer_user_id, request.customer_email),
+      getSettings(),
+      request.stripe_invoice_id ? getInvoiceDisplay(request.stripe_invoice_id) : Promise.resolve(null),
+      listQuotesForRequest(request.id),
+      listSuppliers({ active: "active" }),
+    ]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -217,6 +223,15 @@ export default async function AdminRequestDetailPage({
         </div>
 
         <div className="flex flex-col gap-6">
+          <Panel title="Supplier options">
+            <SupplierOptions
+              requestId={request.id}
+              quotes={supplierQuotes}
+              suppliers={activeSuppliers}
+              selectedQuoteId={request.selected_supplier_quote_id}
+            />
+          </Panel>
+
           <Panel title="Production & customer quote">
             <PricingPanel
               requestId={request.id}
