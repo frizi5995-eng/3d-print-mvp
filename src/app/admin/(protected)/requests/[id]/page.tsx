@@ -132,13 +132,11 @@ export default async function AdminRequestDetailPage({
                 request.customer_shipping_price !== null
               }
             />
-            {request.status !== "new" &&
-              request.status !== "checking" &&
-              request.status !== "waiting_for_partner" && (
-                <p className="text-sm text-muted-foreground">
-                  No actions available for requests in {STATUS_LABELS[request.status].toLowerCase()}.
-                </p>
-              )}
+            {["quote_ready", "quote_sent", "declined"].includes(request.status) && (
+              <p className="text-sm text-muted-foreground">
+                No actions available for requests in {STATUS_LABELS[request.status].toLowerCase()}.
+              </p>
+            )}
           </Panel>
 
           {request.quote_token && (

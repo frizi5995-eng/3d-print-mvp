@@ -7,6 +7,7 @@ import { requireAdminUser } from "@/lib/auth/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAppUrl } from "@/lib/env";
 import { sendQuoteReadyEmail } from "@/lib/email/quote-ready";
+import { logAdminActivity } from "@/lib/admin/activity-log";
 import type { RequestStatus } from "@/types";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -45,7 +46,7 @@ export async function updatePricing(
   _prevState: PricingFormState,
   formData: FormData
 ): Promise<PricingFormState> {
-  await requireAdminUser();
+  const admin = await requireAdminUser();
 
   const parsed = pricingSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -74,15 +75,25 @@ export async function updatePricing(
     return { status: "error", error: "Could not save changes. Please try again." };
   }
 
+  await logAdminActivity(admin.email!, "pricing_changed", parsed.data.requestId);
+
   revalidatePath(`/admin/requests/${parsed.data.requestId}`);
   revalidatePath("/admin/requests");
+  revalidatePath("/admin/dashboard");
   return { status: "success" };
 }
 
+/**
+ * Atomic by construction: the UPDATE's WHERE clause re-checks the status
+ * that was just read, so a concurrent change between the read and the
+ * write causes this to affect zero rows (reported as a normal "no longer
+ * allowed" error) rather than silently clobbering a newer state.
+ */
 async function setStatusIfAllowed(
   requestId: string,
   next: RequestStatus,
-  allowedFrom: RequestStatus[]
+  allowedFrom: RequestStatus[],
+  adminEmail: string
 ): Promise<ActionResult> {
   const supabase = createServiceClient();
   const { data: request } = await supabase
@@ -92,36 +103,104 @@ async function setStatusIfAllowed(
     .maybeSingle();
 
   if (!request) return { ok: false, error: "Request not found." };
-  if (!allowedFrom.includes(request.status as RequestStatus)) {
+  const currentStatus = request.status as RequestStatus;
+  if (!allowedFrom.includes(currentStatus)) {
     return { ok: false, error: "This request is no longer in a status that allows that action." };
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("manufacturing_requests")
     .update({ status: next })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", currentStatus)
+    .select("id");
 
   if (error) return { ok: false, error: "Could not update status. Please try again." };
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: "This request changed status just now. Please refresh and try again." };
+  }
+
+  await logAdminActivity(adminEmail, "status_changed", requestId, { from: currentStatus, to: next });
 
   revalidatePath(`/admin/requests/${requestId}`);
   revalidatePath("/admin/requests");
+  revalidatePath("/admin/dashboard");
   return { ok: true };
 }
 
 export async function markChecking(requestId: string): Promise<ActionResult> {
-  await requireAdminUser();
-  return setStatusIfAllowed(requestId, "checking", ["new"]);
+  const admin = await requireAdminUser();
+  return setStatusIfAllowed(requestId, "checking", ["new"], admin.email!);
 }
 
 export async function markWaitingForPartner(requestId: string): Promise<ActionResult> {
-  await requireAdminUser();
-  return setStatusIfAllowed(requestId, "waiting_for_partner", ["new", "checking"]);
+  const admin = await requireAdminUser();
+  return setStatusIfAllowed(requestId, "waiting_for_partner", ["new", "checking"], admin.email!);
+}
+
+/**
+ * The post-acceptance operational workflow, plus one-step-back corrections
+ * only (never an arbitrary jump) so status management stays predictable.
+ * quote_ready/quote_sent are deliberately excluded — those go through
+ * prepareQuote(), which does more than flip a status column.
+ */
+const WORKFLOW_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
+  accepted: ["manufacturing"],
+  manufacturing: ["shipped", "accepted"],
+  shipped: ["completed", "manufacturing"],
+  completed: ["shipped"],
+};
+
+export const NEXT_ACTION_LABELS: Partial<Record<RequestStatus, string>> = {
+  accepted: "Start manufacturing",
+  manufacturing: "Mark shipped",
+  shipped: "Mark completed",
+};
+
+export async function changeRequestStatus(
+  requestId: string,
+  next: RequestStatus
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const supabase = createServiceClient();
+
+  const { data: request } = await supabase
+    .from("manufacturing_requests")
+    .select("status")
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (!request) return { ok: false, error: "Request not found." };
+  const currentStatus = request.status as RequestStatus;
+  const allowed = WORKFLOW_TRANSITIONS[currentStatus] ?? [];
+  if (!allowed.includes(next)) {
+    return { ok: false, error: "That status change isn't allowed from the current status." };
+  }
+
+  const { data: updated, error } = await supabase
+    .from("manufacturing_requests")
+    .update({ status: next })
+    .eq("id", requestId)
+    .eq("status", currentStatus)
+    .select("id");
+
+  if (error) return { ok: false, error: "Could not update status. Please try again." };
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: "This request changed status just now. Please refresh and try again." };
+  }
+
+  await logAdminActivity(admin.email!, "status_changed", requestId, { from: currentStatus, to: next });
+
+  revalidatePath(`/admin/requests/${requestId}`);
+  revalidatePath("/admin/requests");
+  revalidatePath("/admin/dashboard");
+  return { ok: true };
 }
 
 const QUOTE_VALIDITY_DAYS = 7;
 
 export async function prepareQuote(requestId: string): Promise<ActionResult> {
-  await requireAdminUser();
+  const admin = await requireAdminUser();
 
   const supabase = createServiceClient();
   const { data: request } = await supabase
@@ -160,8 +239,11 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
 
   if (error) return { ok: false, error: "Could not prepare the quote. Please try again." };
 
+  await logAdminActivity(admin.email!, "quote_prepared", requestId);
+
   revalidatePath(`/admin/requests/${requestId}`);
   revalidatePath("/admin/requests");
+  revalidatePath("/admin/dashboard");
 
   const finalToken = update.quote_token ?? request.quote_token!;
   const finalExpiresAt = update.quote_expires_at ?? request.quote_expires_at!;

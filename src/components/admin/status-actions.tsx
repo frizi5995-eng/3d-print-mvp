@@ -8,9 +8,20 @@ import {
   markChecking,
   markWaitingForPartner,
   prepareQuote,
+  changeRequestStatus,
+  NEXT_ACTION_LABELS,
   type ActionResult,
 } from "@/app/admin/(protected)/requests/[id]/actions";
+import { STATUS_LABELS } from "@/lib/constants";
 import type { RequestStatus } from "@/types";
+
+// One step back only, mirrors WORKFLOW_TRANSITIONS server-side (that map is
+// the real guard; this is just what the UI offers).
+const BACKWARD_CORRECTION: Partial<Record<RequestStatus, RequestStatus>> = {
+  manufacturing: "accepted",
+  shipped: "manufacturing",
+  completed: "shipped",
+};
 
 export function StatusActions({
   requestId,
@@ -42,37 +53,62 @@ export function StatusActions({
   const canMarkChecking = status === "new";
   const canMarkWaiting = status === "new" || status === "checking";
   const canPrepareQuote = status === "new" || status === "checking" || status === "waiting_for_partner";
+  const nextAction = NEXT_ACTION_LABELS[status];
+  const nextStatus: RequestStatus | undefined =
+    status === "accepted" ? "manufacturing" : status === "manufacturing" ? "shipped" : status === "shipped" ? "completed" : undefined;
+  const backTo = BACKWARD_CORRECTION[status];
 
-  if (!canMarkChecking && !canMarkWaiting && !canPrepareQuote) return null;
+  if (!canMarkChecking && !canMarkWaiting && !canPrepareQuote && !nextAction && !backTo) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {canMarkChecking && (
-        <Button
-          variant="outline"
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {canMarkChecking && (
+          <Button
+            variant="outline"
+            disabled={isPending}
+            onClick={() => run("checking", () => markChecking(requestId))}
+          >
+            {pendingAction === "checking" ? "Marking…" : "Mark checking"}
+          </Button>
+        )}
+        {canMarkWaiting && (
+          <Button
+            variant="outline"
+            disabled={isPending}
+            onClick={() => run("waiting", () => markWaitingForPartner(requestId))}
+          >
+            {pendingAction === "waiting" ? "Marking…" : "Mark waiting for partner"}
+          </Button>
+        )}
+        {canPrepareQuote && (
+          <Button
+            disabled={isPending || !hasCustomerPrice}
+            title={!hasCustomerPrice ? "Set a customer price first" : undefined}
+            onClick={() => run("quote", () => prepareQuote(requestId))}
+          >
+            {pendingAction === "quote" ? "Preparing…" : "Prepare quote"}
+          </Button>
+        )}
+        {nextAction && nextStatus && (
+          <Button
+            disabled={isPending}
+            onClick={() => run("workflow", () => changeRequestStatus(requestId, nextStatus))}
+          >
+            {pendingAction === "workflow" ? "Updating…" : nextAction}
+          </Button>
+        )}
+      </div>
+
+      {backTo && (
+        <button
+          type="button"
           disabled={isPending}
-          onClick={() => run("checking", () => markChecking(requestId))}
+          onClick={() => run("revert", () => changeRequestStatus(requestId, backTo))}
+          className="w-fit text-xs text-muted-foreground underline decoration-dotted hover:text-foreground disabled:opacity-50"
         >
-          {pendingAction === "checking" ? "Marking…" : "Mark checking"}
-        </Button>
-      )}
-      {canMarkWaiting && (
-        <Button
-          variant="outline"
-          disabled={isPending}
-          onClick={() => run("waiting", () => markWaitingForPartner(requestId))}
-        >
-          {pendingAction === "waiting" ? "Marking…" : "Mark waiting for partner"}
-        </Button>
-      )}
-      {canPrepareQuote && (
-        <Button
-          disabled={isPending || !hasCustomerPrice}
-          title={!hasCustomerPrice ? "Set a customer price first" : undefined}
-          onClick={() => run("quote", () => prepareQuote(requestId))}
-        >
-          {pendingAction === "quote" ? "Preparing…" : "Prepare quote"}
-        </Button>
+          {pendingAction === "revert" ? "Reverting…" : `Revert to ${STATUS_LABELS[backTo]}`}
+        </button>
       )}
     </div>
   );
