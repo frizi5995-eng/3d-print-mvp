@@ -208,5 +208,10 @@ export function getIntegrationStatuses(): IntegrationStatus[] {
       configured: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET),
       description: "Invoicing and payment collection for accepted quotes.",
     },
+    {
+      name: "Sculpteo (API)",
+      configured: Boolean(process.env.SCULPTEO_CLIENT_ID && process.env.SCULPTEO_CLIENT_SECRET),
+      description: "Supplier API integration — scaffolding only, quoting not yet implemented.",
+    },
   ];
 }
