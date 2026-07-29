@@ -78,6 +78,10 @@ export async function GET(request: NextRequest) {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      // Not silent: if the export hit the row cap, that's visible on the
+      // response even though it can't be embedded in the CSV file itself.
+      "X-Export-Truncated": String(truncated),
+      "X-Export-Row-Count": String(rows.length),
     },
   });
 }
