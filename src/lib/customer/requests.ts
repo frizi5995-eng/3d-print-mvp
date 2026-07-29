@@ -96,7 +96,7 @@ export async function getMyRequestById(userId: string, id: string) {
   const { data: request } = await supabase
     .from("manufacturing_requests")
     .select(
-      "id, reference_number, status, quantity, material, color, desired_size, notes, customer_manufacturing_price, customer_shipping_price, quote_token, quote_expires_at, created_at, models(*)"
+      "id, reference_number, status, quantity, material, color, desired_size, notes, customer_manufacturing_price, customer_shipping_price, quote_token, quote_expires_at, payment_status, stripe_invoice_id, paid_at, created_at, models(*)"
     )
     .eq("id", id)
     .eq("customer_user_id", userId)

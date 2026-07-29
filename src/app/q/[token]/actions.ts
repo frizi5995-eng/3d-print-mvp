@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
 import { DECLINE_REASON_LABELS } from "@/lib/constants";
+import { createInvoiceForRequest } from "@/lib/stripe/invoicing";
 
 /**
  * A quote can only be actioned while it's actively awaiting a customer
@@ -18,12 +19,28 @@ const ACTIONABLE_STATUSES = ["quote_ready", "quote_sent"];
 
 export async function acceptQuote(token: string): Promise<void> {
   const supabase = createServiceClient();
-  await supabase
+  // .select() so we can tell whether THIS call was the one that actually
+  // transitioned the request — a double-click or a second tab affects zero
+  // rows and must not trigger a second invoice-creation attempt (though
+  // createInvoiceForRequest is itself idempotent regardless).
+  const { data: updated } = await supabase
     .from("manufacturing_requests")
     .update({ status: "accepted" })
     .eq("quote_token", token)
     .in("status", ACTIONABLE_STATUSES)
-    .gt("quote_expires_at", new Date().toISOString());
+    .gt("quote_expires_at", new Date().toISOString())
+    .select("id")
+    .maybeSingle();
+
+  if (updated) {
+    // Best-effort: invoice creation failing must never block the customer
+    // from seeing their "accepted" confirmation. The admin panel offers a
+    // manual, idempotent retry ("Create invoice") if this doesn't go through
+    // (e.g. Stripe isn't configured yet).
+    await createInvoiceForRequest(updated.id).catch((err: unknown) => {
+      console.error(`Invoice creation failed for request ${updated.id}:`, err);
+    });
+  }
 
   redirect(`/q/${token}`);
 }

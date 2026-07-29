@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Search, AlertTriangle } from "lucide-react";
 import { listRequests, getFilterOptions, type ListRequestsParams } from "@/lib/admin/requests";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { PaymentStatusBadge } from "@/components/admin/payment-status-badge";
 import { QuickActions } from "@/components/admin/quick-actions";
 import { STATUS_ORDER, STATUS_LABELS, MATERIALS } from "@/lib/constants";
 import { formatDate, isPast } from "@/lib/utils";
@@ -255,6 +256,7 @@ export default async function AdminRequestsPage({
               <TableHead>Customer</TableHead>
               <TableHead>Model</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Payment</TableHead>
               <TableHead>Account</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Updated</TableHead>
@@ -266,7 +268,7 @@ export default async function AdminRequestsPage({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="py-12 text-center text-muted-foreground">
                   {status !== "all" || search
                     ? "No requests match this search or filter."
                     : "No requests yet. When customers submit manufacturing requests, they will appear here."}
@@ -291,6 +293,16 @@ export default async function AdminRequestsPage({
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={row.status} />
+                  </TableCell>
+                  <TableCell>
+                    {row.status === "accepted" ||
+                    row.status === "manufacturing" ||
+                    row.status === "shipped" ||
+                    row.status === "completed" ? (
+                      <PaymentStatusBadge status={row.payment_status} />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {row.is_registered ? "Registered" : "Guest"}

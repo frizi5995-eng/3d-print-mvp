@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download, Mail, Phone } from "lucide-react";
+import { ChevronLeft, Download, Mail, Phone, ExternalLink } from "lucide-react";
 import { getRequestById, getCustomerRequestCounts } from "@/lib/admin/requests";
 import { getSettings } from "@/lib/admin/settings";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
+import { isStripeConfigured } from "@/lib/stripe/client";
+import { getInvoiceDisplay } from "@/lib/stripe/invoicing";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { PaymentStatusBadge } from "@/components/admin/payment-status-badge";
+import { PaymentActions } from "@/components/admin/payment-actions";
 import { PricingPanel } from "@/components/admin/pricing-panel";
 import { StatusActions } from "@/components/admin/status-actions";
 import { HistoryList } from "@/components/admin/history-list";
@@ -15,8 +19,9 @@ import { QuoteControls } from "@/components/admin/quote-controls";
 import { InternalNotes } from "@/components/admin/internal-notes";
 import { TagsEditor } from "@/components/admin/tags-editor";
 import { SuspiciousToggle } from "@/components/admin/suspicious-toggle";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { STATUS_LABELS } from "@/lib/constants";
+import { formatEUR } from "@/lib/admin/money";
 import { getAppUrl } from "@/lib/env";
 import type { ManufacturingRequest, Model, ModelFileType, StatusHistoryEntry } from "@/types";
 
@@ -34,13 +39,14 @@ export default async function AdminRequestDetailPage({
   const history = result.history as unknown as StatusHistoryEntry[];
 
   const supabase = createServiceClient();
-  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts, settings] = await Promise.all([
+  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts, settings, invoice] = await Promise.all([
     supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
     supabase.storage
       .from(MODEL_STORAGE_BUCKET)
       .createSignedUrl(model.storage_path, 300, { download: model.filename }),
     getCustomerRequestCounts(request.customer_user_id, request.customer_email),
     getSettings(),
+    request.stripe_invoice_id ? getInvoiceDisplay(request.stripe_invoice_id) : Promise.resolve(null),
   ]);
 
   return (
@@ -143,6 +149,7 @@ export default async function AdminRequestDetailPage({
             <StatusActions
               requestId={request.id}
               status={request.status}
+              paymentStatus={request.payment_status}
               hasCustomerPrice={
                 request.customer_manufacturing_price !== null &&
                 request.customer_shipping_price !== null
@@ -154,6 +161,45 @@ export default async function AdminRequestDetailPage({
               </p>
             )}
           </Panel>
+
+          {(request.status === "accepted" ||
+            request.status === "manufacturing" ||
+            request.status === "shipped" ||
+            request.status === "completed") && (
+            <Panel title="Payment">
+              <Field label="Payment status" value={<PaymentStatusBadge status={request.payment_status} />} />
+              {invoice && (
+                <>
+                  <Field label="Invoice status" value={invoice.status} />
+                  <Field label="Invoice number" value={invoice.number ?? "—"} />
+                  <Field label="Amount due" value={formatEUR(invoice.amountDue)} />
+                  {invoice.amountPaid > 0 && (
+                    <Field label="Amount paid" value={formatEUR(invoice.amountPaid)} />
+                  )}
+                </>
+              )}
+              {request.paid_at && <Field label="Paid at" value={formatDateTime(request.paid_at)} />}
+              {invoice?.hostedInvoiceUrl && (
+                <a
+                  href={invoice.hostedInvoiceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-fit items-center gap-1.5 text-sm text-primary hover:underline"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Open hosted invoice page
+                </a>
+              )}
+              <div className="mt-1">
+                <PaymentActions
+                  requestId={request.id}
+                  paymentStatus={request.payment_status}
+                  hasInvoice={Boolean(request.stripe_invoice_id)}
+                  stripeConfigured={isStripeConfigured()}
+                />
+              </div>
+            </Panel>
+          )}
 
           {request.quote_token && (
             <Panel title="Customer quote link">

@@ -10,6 +10,8 @@ import { requireCustomerUser } from "@/lib/auth/customer";
 import { getMyRequestById } from "@/lib/customer/requests";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
+import { getInvoiceDisplay } from "@/lib/stripe/invoicing";
+import { PaymentSummary } from "@/components/account/payment-summary";
 import { formatDateTime, isPast } from "@/lib/utils";
 import { formatEUR } from "@/lib/admin/money";
 import type { ManufacturingRequest, Model, ModelFileType, StatusHistoryEntry } from "@/types";
@@ -30,9 +32,16 @@ export default async function MyRequestDetailPage({
   const history = result.history as unknown as StatusHistoryEntry[];
 
   const supabase = createServiceClient();
-  const { data: signed } = await supabase.storage
-    .from(MODEL_STORAGE_BUCKET)
-    .createSignedUrl(model.storage_path, 3600);
+  const [{ data: signed }, invoice] = await Promise.all([
+    supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
+    request.stripe_invoice_id ? getInvoiceDisplay(request.stripe_invoice_id) : Promise.resolve(null),
+  ]);
+
+  const showPayment =
+    request.status === "accepted" ||
+    request.status === "manufacturing" ||
+    request.status === "shipped" ||
+    request.status === "completed";
 
   const total =
     request.customer_manufacturing_price !== null && request.customer_shipping_price !== null
@@ -112,6 +121,18 @@ export default async function MyRequestDetailPage({
               </Button>
             )}
           </section>
+
+          {showPayment && (
+            <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+              <h2 className="text-sm font-medium text-muted-foreground">Payment</h2>
+              <PaymentSummary
+                paymentStatus={request.payment_status}
+                invoiceNumber={invoice?.number}
+                hostedInvoiceUrl={invoice?.hostedInvoiceUrl}
+                paidAt={request.paid_at}
+              />
+            </section>
+          )}
 
           <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
             <h2 className="text-sm font-medium text-muted-foreground">History</h2>

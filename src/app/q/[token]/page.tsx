@@ -2,11 +2,13 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
 import { QuoteActions } from "@/components/quote-public/quote-actions";
+import { PaymentSummary } from "@/components/account/payment-summary";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
+import { getInvoiceDisplay } from "@/lib/stripe/invoicing";
 import { formatEUR } from "@/lib/admin/money";
 import { isPast } from "@/lib/utils";
-import type { ModelFileType } from "@/types";
+import type { ModelFileType, PaymentStatus } from "@/types";
 
 const VIEWABLE_STATUSES = ["quote_ready", "quote_sent"];
 const PREVIEW_URL_TTL_SECONDS = 600;
@@ -22,15 +24,25 @@ export default async function PublicQuotePage({
   const { data: request } = await supabase
     .from("manufacturing_requests")
     .select(
-      "status, quantity, material, color, desired_size, customer_manufacturing_price, customer_shipping_price, quote_expires_at, models(filename, storage_path, file_type)"
+      "status, quantity, material, color, desired_size, customer_manufacturing_price, customer_shipping_price, quote_expires_at, payment_status, stripe_invoice_id, paid_at, models(filename, storage_path, file_type)"
     )
     .eq("quote_token", token)
     .maybeSingle();
 
   if (!request) return <NotAvailable />;
 
-  if (request.status === "accepted") return <FinalState variant="accepted" />;
-  if (request.status === "declined") return <FinalState variant="declined" />;
+  if (request.status === "accepted") {
+    const invoice = request.stripe_invoice_id ? await getInvoiceDisplay(request.stripe_invoice_id) : null;
+    return (
+      <AcceptedState
+        paymentStatus={request.payment_status}
+        invoiceNumber={invoice?.number}
+        hostedInvoiceUrl={invoice?.hostedInvoiceUrl}
+        paidAt={request.paid_at}
+      />
+    );
+  }
+  if (request.status === "declined") return <DeclinedState />;
 
   if (!VIEWABLE_STATUSES.includes(request.status) || !request.quote_expires_at) {
     return <NotAvailable />;
@@ -108,27 +120,48 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FinalState({ variant }: { variant: "accepted" | "declined" }) {
-  const accepted = variant === "accepted";
+function DeclinedState() {
   return (
     <Container className="flex flex-col items-center gap-4 py-24 text-center">
-      <div
-        className={
-          accepted
-            ? "flex size-14 items-center justify-center rounded-full bg-success/15 text-success"
-            : "flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground"
-        }
-      >
-        {accepted ? <CheckCircle2 className="size-7" /> : <XCircle className="size-7" />}
+      <div className="flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <XCircle className="size-7" />
       </div>
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {accepted ? "Quote accepted" : "Quote declined"}
-      </h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Quote declined</h1>
+      <p className="max-w-md text-muted-foreground">Thanks for letting us know.</p>
+    </Container>
+  );
+}
+
+function AcceptedState({
+  paymentStatus,
+  invoiceNumber,
+  hostedInvoiceUrl,
+  paidAt,
+}: {
+  paymentStatus: PaymentStatus;
+  invoiceNumber?: string | null;
+  hostedInvoiceUrl?: string | null;
+  paidAt?: string | null;
+}) {
+  return (
+    <Container className="flex flex-col items-center gap-4 py-24 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full bg-success/15 text-success">
+        <CheckCircle2 className="size-7" />
+      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Quote accepted</h1>
       <p className="max-w-md text-muted-foreground">
-        {accepted
-          ? "We've received your confirmation. We'll contact you to arrange payment and delivery."
-          : "Thanks for letting us know."}
+        {paymentStatus === "paid"
+          ? "We've received your payment and will begin manufacturing shortly."
+          : "We've received your confirmation. Next, pay the invoice below so we can start manufacturing."}
       </p>
+      <div className="w-full max-w-sm text-left">
+        <PaymentSummary
+          paymentStatus={paymentStatus}
+          invoiceNumber={invoiceNumber}
+          hostedInvoiceUrl={hostedInvoiceUrl}
+          paidAt={paidAt}
+        />
+      </div>
     </Container>
   );
 }

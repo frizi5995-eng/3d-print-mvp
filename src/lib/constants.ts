@@ -1,4 +1,4 @@
-import type { DeclineReason, ModelFileType, RequestStatus } from "@/types";
+import type { DeclineReason, ModelFileType, PaymentStatus, RequestStatus } from "@/types";
 
 export const MATERIALS = ["PLA", "Not sure"] as const;
 
@@ -33,6 +33,14 @@ export const STATUS_ORDER: RequestStatus[] = [
   "shipped",
   "completed",
 ];
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  unpaid: "Unpaid",
+  invoice_sent: "Invoice sent",
+  paid: "Paid",
+  payment_failed: "Payment failed",
+  refunded: "Refunded",
+};
 
 export const DECLINE_REASON_LABELS: Record<DeclineReason, string> = {
   price_too_high: "Price too high",

@@ -19,6 +19,12 @@ export type DeclineReason =
   | "needs_model_changes"
   | "other";
 
+/**
+ * Independent of RequestStatus — a request being "accepted" and a payment
+ * being "paid" are different facts. Never derive one from the other.
+ */
+export type PaymentStatus = "unpaid" | "invoice_sent" | "paid" | "payment_failed" | "refunded";
+
 export interface Model {
   id: string;
   filename: string;
@@ -71,6 +77,12 @@ export interface ManufacturingRequest {
   spam_reason: string | null;
   internal_notes: string | null;
   tags: string[];
+
+  payment_status: PaymentStatus;
+  stripe_customer_id: string | null;
+  stripe_invoice_id: string | null;
+  stripe_payment_intent_id: string | null;
+  paid_at: string | null;
 
   created_at: string;
   updated_at: string;

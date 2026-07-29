@@ -125,5 +125,10 @@ export function getIntegrationStatuses(): IntegrationStatus[] {
       configured: Boolean(process.env.TURNSTILE_SECRET_KEY),
       description: "Bot verification on the public quote form.",
     },
+    {
+      name: "Stripe",
+      configured: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET),
+      description: "Invoicing and payment collection for accepted quotes.",
+    },
   ];
 }

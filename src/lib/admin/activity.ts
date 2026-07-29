@@ -15,6 +15,13 @@ export const ACTIVITY_ACTIONS = [
   "flagged_suspicious",
   "settings_updated",
   "requests_exported",
+  "invoice_created",
+  "invoice_resend_requested",
+  "payment_paid",
+  "payment_failed",
+  "payment_voided",
+  "payment_refunded",
+  "payment_marked_paid_manually",
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
@@ -30,7 +37,17 @@ export const ACTIVITY_ACTION_LABELS: Record<ActivityAction, string> = {
   flagged_suspicious: "Spam flag changed",
   settings_updated: "Settings updated",
   requests_exported: "Requests exported (CSV)",
+  invoice_created: "Invoice created",
+  invoice_resend_requested: "Invoice resent",
+  payment_paid: "Payment received",
+  payment_failed: "Payment failed",
+  payment_voided: "Invoice voided",
+  payment_refunded: "Payment refunded",
+  payment_marked_paid_manually: "Payment marked paid (manual override)",
 };
+
+/** Used for admin_activity_log entries written by the Stripe webhook, which has no signed-in admin. */
+export const STRIPE_WEBHOOK_ACTOR = "system:stripe-webhook";
 
 /** The fixed set of admin emails authorized to act — same allowlist auth uses, for the filter dropdown. */
 export function adminEmailAllowlist(): string[] {

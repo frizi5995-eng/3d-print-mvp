@@ -2,7 +2,7 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
 import { computeTotals } from "@/lib/admin/money";
 import { STATUS_ORDER } from "@/lib/constants";
-import type { DeclineReason, RequestStatus } from "@/types";
+import type { DeclineReason, PaymentStatus, RequestStatus } from "@/types";
 
 const PAGE_SIZE = 20;
 
@@ -44,12 +44,13 @@ export interface ListRequestsParams {
 }
 
 const LIST_COLUMNS =
-  "id, reference_number, status, customer_name, customer_email, customer_user_id, is_suspicious, material, country, quantity, created_at, updated_at, quote_token, quote_expires_at, production_cost, production_shipping_cost, other_cost, customer_manufacturing_price, customer_shipping_price, model_id, models(filename)";
+  "id, reference_number, status, payment_status, customer_name, customer_email, customer_user_id, is_suspicious, material, country, quantity, created_at, updated_at, quote_token, quote_expires_at, production_cost, production_shipping_cost, other_cost, customer_manufacturing_price, customer_shipping_price, model_id, models(filename)";
 
 export interface RequestListRow {
   id: string;
   reference_number: number;
   status: RequestStatus;
+  payment_status: PaymentStatus;
   customer_name: string;
   customer_email: string;
   is_registered: boolean;
@@ -92,6 +93,7 @@ function toListRow(row: Record<string, unknown>): RequestListRow {
     id: row.id as string,
     reference_number: row.reference_number as number,
     status: row.status as RequestStatus,
+    payment_status: row.payment_status as PaymentStatus,
     customer_name: row.customer_name as string,
     customer_email: row.customer_email as string,
     is_registered: row.customer_user_id !== null,

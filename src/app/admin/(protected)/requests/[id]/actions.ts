@@ -167,7 +167,7 @@ export async function changeRequestStatus(
 
   const { data: request } = await supabase
     .from("manufacturing_requests")
-    .select("status")
+    .select("status, payment_status")
     .eq("id", requestId)
     .maybeSingle();
 
@@ -178,16 +178,39 @@ export async function changeRequestStatus(
     return { ok: false, error: "That status change isn't allowed from the current status." };
   }
 
-  const { data: updated, error } = await supabase
+  // Payment is a separate fact from operational status (see migration
+  // 0004_payments.sql) — manufacturing must never start on an unpaid order.
+  // Only this one forward transition is gated; reverting manufacturing ->
+  // accepted doesn't need to re-check payment.
+  if (currentStatus === "accepted" && next === "manufacturing" && request.payment_status !== "paid") {
+    return {
+      ok: false,
+      error: "This request hasn't been paid yet. Manufacturing can't start until payment is confirmed.",
+    };
+  }
+
+  let query = supabase
     .from("manufacturing_requests")
     .update({ status: next })
     .eq("id", requestId)
-    .eq("status", currentStatus)
-    .select("id");
+    .eq("status", currentStatus);
+  // Re-check payment_status in the same atomic write for this one gated
+  // transition, closing the window between the read above and this update
+  // (e.g. a refund webhook landing in between).
+  if (currentStatus === "accepted" && next === "manufacturing") {
+    query = query.eq("payment_status", "paid");
+  }
+  const { data: updated, error } = await query.select("id");
 
   if (error) return { ok: false, error: "Could not update status. Please try again." };
   if (!updated || updated.length === 0) {
-    return { ok: false, error: "This request changed status just now. Please refresh and try again." };
+    return {
+      ok: false,
+      error:
+        currentStatus === "accepted" && next === "manufacturing"
+          ? "Payment is no longer confirmed for this request. Please refresh and check payment status."
+          : "This request changed status just now. Please refresh and try again.",
+    };
   }
 
   await logAdminActivity(admin.email!, "status_changed", requestId, { from: currentStatus, to: next });

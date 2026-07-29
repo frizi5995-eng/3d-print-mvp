@@ -13,7 +13,7 @@ import {
   type ActionResult,
 } from "@/app/admin/(protected)/requests/[id]/actions";
 import { STATUS_LABELS } from "@/lib/constants";
-import type { RequestStatus } from "@/types";
+import type { PaymentStatus, RequestStatus } from "@/types";
 
 // One step back only, mirrors WORKFLOW_TRANSITIONS server-side (that map is
 // the real guard; this is just what the UI offers).
@@ -26,10 +26,12 @@ const BACKWARD_CORRECTION: Partial<Record<RequestStatus, RequestStatus>> = {
 export function StatusActions({
   requestId,
   status,
+  paymentStatus,
   hasCustomerPrice,
 }: {
   requestId: string;
   status: RequestStatus;
+  paymentStatus: PaymentStatus;
   hasCustomerPrice: boolean;
 }) {
   const router = useRouter();
@@ -57,6 +59,7 @@ export function StatusActions({
   const nextStatus: RequestStatus | undefined =
     status === "accepted" ? "manufacturing" : status === "manufacturing" ? "shipped" : status === "shipped" ? "completed" : undefined;
   const backTo = BACKWARD_CORRECTION[status];
+  const blockedByPayment = status === "accepted" && nextStatus === "manufacturing" && paymentStatus !== "paid";
 
   if (!canMarkChecking && !canMarkWaiting && !canPrepareQuote && !nextAction && !backTo) return null;
 
@@ -92,13 +95,19 @@ export function StatusActions({
         )}
         {nextAction && nextStatus && (
           <Button
-            disabled={isPending}
+            disabled={isPending || blockedByPayment}
+            title={blockedByPayment ? "Payment must be confirmed before manufacturing can start" : undefined}
             onClick={() => run("workflow", () => changeRequestStatus(requestId, nextStatus))}
           >
             {pendingAction === "workflow" ? "Updating…" : nextAction}
           </Button>
         )}
       </div>
+      {blockedByPayment && (
+        <p className="text-xs text-muted-foreground">
+          Waiting on payment before manufacturing can start — see the Payment panel.
+        </p>
+      )}
 
       {backTo && (
         <button
