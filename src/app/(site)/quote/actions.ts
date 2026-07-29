@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/customer";
 import { COLORS, MATERIALS } from "@/lib/constants";
 
 const requestSchema = z.object({
@@ -69,6 +70,10 @@ export async function createManufacturingRequest(
     return { error: "We couldn't find your uploaded model. Please upload it again." };
   }
 
+  // Server-verified session only — never a client-supplied user id. Anonymous
+  // submissions (no session) stay customer_user_id = null, unchanged.
+  const currentUser = await getCurrentUser();
+
   const { data: created, error } = await supabase
     .from("manufacturing_requests")
     .insert({
@@ -83,6 +88,7 @@ export async function createManufacturingRequest(
       customer_phone: data.customerPhone?.trim() || null,
       country: data.country.trim(),
       postal_code: data.postalCode.trim(),
+      customer_user_id: currentUser?.id ?? null,
     })
     .select("reference_number")
     .single();
