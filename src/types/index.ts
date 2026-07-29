@@ -65,6 +65,13 @@ export interface ManufacturingRequest {
   quote_token: string | null;
   quote_expires_at: string | null;
 
+  customer_user_id: string | null;
+  submission_ip_hash: string | null;
+  is_suspicious: boolean;
+  spam_reason: string | null;
+  internal_notes: string | null;
+  tags: string[];
+
   created_at: string;
   updated_at: string;
 }
@@ -79,3 +86,21 @@ export interface StatusHistoryEntry {
 export interface ManufacturingRequestWithModel extends ManufacturingRequest {
   model: Model;
 }
+
+export interface AdminActivityLogEntry {
+  id: string;
+  admin_email: string;
+  action: string;
+  request_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export const OPERATIONAL_TAGS = [
+  "urgent",
+  "repeat_customer",
+  "complex_model",
+  "manual_review",
+  "high_value",
+] as const;
+export type OperationalTag = (typeof OPERATIONAL_TAGS)[number];
