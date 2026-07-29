@@ -1,5 +1,6 @@
 import { formatEUR } from "@/lib/admin/money";
 import { STATUS_LABELS, DECLINE_REASON_LABELS } from "@/lib/constants";
+import { StatTile } from "@/components/admin/stat-tile";
 import type { RequestStats } from "@/lib/admin/requests";
 
 export function RequestsOverview({ stats }: { stats: RequestStats }) {
@@ -9,15 +10,15 @@ export function RequestsOverview({ stats }: { stats: RequestStats }) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Total requests" value={String(stats.total)} />
-        <Stat label="Quotes prepared" value={String(stats.quotesPrepared)} />
-        <Stat label="Accepted" value={String(stats.accepted)} tone="positive" />
-        <Stat label="Declined" value={String(stats.declined)} tone="negative" />
-        <Stat
+        <StatTile label="Total requests" value={String(stats.total)} />
+        <StatTile label="Quotes prepared" value={String(stats.quotesPrepared)} />
+        <StatTile label="Accepted" value={String(stats.accepted)} tone="positive" />
+        <StatTile label="Declined" value={String(stats.declined)} tone="negative" />
+        <StatTile
           label="Acceptance rate"
           value={stats.acceptanceRate === null ? "—" : `${Math.round(stats.acceptanceRate * 100)}%`}
         />
-        <Stat
+        <StatTile
           label="Avg. margin"
           value={stats.averageMargin === null ? "—" : formatEUR(stats.averageMargin)}
         />
@@ -55,33 +56,6 @@ export function RequestsOverview({ stats }: { stats: RequestStats }) {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "positive" | "negative";
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span
-        className={
-          tone === "positive"
-            ? "text-2xl font-semibold text-success"
-            : tone === "negative"
-              ? "text-2xl font-semibold text-destructive"
-              : "text-2xl font-semibold"
-        }
-      >
-        {value}
-      </span>
     </div>
   );
 }
