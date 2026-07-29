@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { claimRequestsForUser } from "@/lib/auth/claim-requests";
+import { claimRequestsForAuthenticatedUser } from "@/lib/auth/claim-requests";
 
 const schema = z
   .object({
@@ -47,12 +47,18 @@ export async function registerCustomer(
     return { error: "Could not create your account. Please try again." };
   }
 
-  if (data.session && data.user.email) {
-    // Email confirmation is disabled on this project — session is active immediately.
-    await claimRequestsForUser(data.user.id, data.user.email);
+  // A session existing here only means email confirmation is disabled on
+  // this project (Supabase auto-confirms at signup in that mode) OR the
+  // user already had a prior confirmed identity — never proof by itself.
+  // claimRequestsForAuthenticatedUser re-checks email_confirmed_at itself
+  // regardless, so this can never claim on an unconfirmed identity even if
+  // a session is somehow present.
+  if (data.session && data.user.email_confirmed_at) {
+    await claimRequestsForAuthenticatedUser(data.user);
     redirect("/account");
   }
 
-  // Email confirmation is required before a session exists.
+  // No session, or a session without confirmed email — the account exists
+  // but has claimed nothing and grants no ownership yet.
   return { checkEmail: true };
 }

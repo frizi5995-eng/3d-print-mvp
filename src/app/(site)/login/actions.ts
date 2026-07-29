@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { claimRequestsForUser } from "@/lib/auth/claim-requests";
+import { claimRequestsForAuthenticatedUser } from "@/lib/auth/claim-requests";
 
 const schema = z.object({
   email: z.email(),
@@ -30,8 +30,10 @@ export async function loginCustomer(
     return { error: "Invalid email or password." };
   }
 
-  if (data.user?.email) {
-    await claimRequestsForUser(data.user.id, data.user.email);
+  // claimRequestsForAuthenticatedUser re-verifies email_confirmed_at itself;
+  // an unconfirmed identity that somehow reaches login can never claim.
+  if (data.user) {
+    await claimRequestsForAuthenticatedUser(data.user);
   }
 
   redirect("/account");
