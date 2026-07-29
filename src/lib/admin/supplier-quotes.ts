@@ -1,6 +1,10 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { SupplierQuote, SupplierQuoteSource } from "@/types";
+import { validateSupplierQuoteInput, canSelectSupplierQuote, type SupplierQuoteInput } from "@/lib/suppliers/validation";
+import type { SupplierQuote } from "@/types";
+
+export { validateSupplierQuoteInput };
+export type { SupplierQuoteInput };
 
 export interface SupplierQuoteWithSupplier extends SupplierQuote {
   supplier_name: string;
@@ -27,41 +31,6 @@ export async function listQuotesForRequest(requestId: string): Promise<SupplierQ
       supplier_preferred: supplier?.preferred ?? false,
     };
   });
-}
-
-export interface SupplierQuoteInput {
-  supplier_id: string;
-  manufacturing_cost: number;
-  supplier_shipping_cost: number;
-  other_cost: number;
-  lead_time_days_min: number | null;
-  lead_time_days_max: number | null;
-  valid_until: string | null;
-  source: SupplierQuoteSource;
-  external_quote_id: string | null;
-  notes: string | null;
-}
-
-export function validateSupplierQuoteInput(input: SupplierQuoteInput): string[] {
-  const errors: string[] = [];
-  if (!input.supplier_id) errors.push("Supplier is required.");
-  if (!Number.isFinite(input.manufacturing_cost) || input.manufacturing_cost < 0) {
-    errors.push("Manufacturing cost must be a non-negative number.");
-  }
-  if (!Number.isFinite(input.supplier_shipping_cost) || input.supplier_shipping_cost < 0) {
-    errors.push("Supplier shipping cost must be a non-negative number.");
-  }
-  if (!Number.isFinite(input.other_cost) || input.other_cost < 0) {
-    errors.push("Other cost must be a non-negative number.");
-  }
-  if (
-    input.lead_time_days_min !== null &&
-    input.lead_time_days_max !== null &&
-    input.lead_time_days_min > input.lead_time_days_max
-  ) {
-    errors.push("Minimum lead time can't be greater than maximum lead time.");
-  }
-  return errors;
 }
 
 export async function addSupplierQuote(requestId: string, input: SupplierQuoteInput): Promise<{ id: string }> {
@@ -109,11 +78,10 @@ export async function selectSupplierQuote(requestId: string, quoteId: string | n
   if (quoteId) {
     const { data: quote } = await supabase
       .from("supplier_quotes")
-      .select("id")
+      .select("request_id, status")
       .eq("id", quoteId)
-      .eq("request_id", requestId)
       .maybeSingle();
-    if (!quote) return false;
+    if (!quote || !canSelectSupplierQuote(quote, requestId)) return false;
   }
 
   const { error } = await supabase

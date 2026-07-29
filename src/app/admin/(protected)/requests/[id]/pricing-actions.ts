@@ -5,6 +5,7 @@ import { requireAdminUser } from "@/lib/auth/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 import { logAdminActivity } from "@/lib/admin/activity-log";
 import { getPricingRecommendationForRequest } from "@/lib/admin/pricing-engine";
+import { splitRecommendedPrice } from "@/lib/pricing/engine";
 import type { ActionResult } from "./actions";
 
 const PRICE_TIERS = ["minimum", "recommended", "high"] as const;
@@ -41,11 +42,10 @@ export async function applyPricingRecommendation(requestId: string, tier: PriceT
     return { ok: false, error: "Could not compute a valid price." };
   }
 
-  // Shipping passes through at supplier cost (no markup); all margin is
-  // carried on the manufacturing line. The two always sum to exactly
-  // totalPrice, so the target margin is exact regardless of this split.
-  const shippingPrice = Math.round(recommendation.breakdown.supplierShippingCost * 100) / 100;
-  const manufacturingPrice = Math.round((totalPrice - shippingPrice) * 100) / 100;
+  const { manufacturingPrice, shippingPrice } = splitRecommendedPrice(
+    totalPrice,
+    recommendation.breakdown.supplierShippingCost
+  );
 
   const supabase = createServiceClient();
   const { error } = await supabase

@@ -9,6 +9,7 @@ import { getAppUrl } from "@/lib/env";
 import { sendQuoteReadyEmail } from "@/lib/email/quote-ready";
 import { logAdminActivity } from "@/lib/admin/activity-log";
 import { getSettings } from "@/lib/admin/settings";
+import { isTransitionAllowed, isManufacturingBlockedByPayment, isPaymentGatedTransition } from "@/lib/workflow/gating";
 import type { RequestStatus } from "@/types";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -139,19 +140,6 @@ export async function markWaitingForPartner(requestId: string): Promise<ActionRe
   return setStatusIfAllowed(requestId, "waiting_for_partner", ["new", "checking"], admin.email!);
 }
 
-/**
- * The post-acceptance operational workflow, plus one-step-back corrections
- * only (never an arbitrary jump) so status management stays predictable.
- * quote_ready/quote_sent are deliberately excluded — those go through
- * prepareQuote(), which does more than flip a status column.
- */
-const WORKFLOW_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
-  accepted: ["manufacturing"],
-  manufacturing: ["shipped", "accepted"],
-  shipped: ["completed", "manufacturing"],
-  completed: ["shipped"],
-};
-
 export async function changeRequestStatus(
   requestId: string,
   next: RequestStatus
@@ -167,8 +155,7 @@ export async function changeRequestStatus(
 
   if (!request) return { ok: false, error: "Request not found." };
   const currentStatus = request.status as RequestStatus;
-  const allowed = WORKFLOW_TRANSITIONS[currentStatus] ?? [];
-  if (!allowed.includes(next)) {
+  if (!isTransitionAllowed(currentStatus, next)) {
     return { ok: false, error: "That status change isn't allowed from the current status." };
   }
 
@@ -176,7 +163,7 @@ export async function changeRequestStatus(
   // 0004_payments.sql) — manufacturing must never start on an unpaid order.
   // Only this one forward transition is gated; reverting manufacturing ->
   // accepted doesn't need to re-check payment.
-  if (currentStatus === "accepted" && next === "manufacturing" && request.payment_status !== "paid") {
+  if (isManufacturingBlockedByPayment(currentStatus, next, request.payment_status)) {
     return {
       ok: false,
       error: "This request hasn't been paid yet. Manufacturing can't start until payment is confirmed.",
@@ -191,7 +178,7 @@ export async function changeRequestStatus(
   // Re-check payment_status in the same atomic write for this one gated
   // transition, closing the window between the read above and this update
   // (e.g. a refund webhook landing in between).
-  if (currentStatus === "accepted" && next === "manufacturing") {
+  if (isPaymentGatedTransition(currentStatus, next)) {
     query = query.eq("payment_status", "paid");
   }
   const { data: updated, error } = await query.select("id");
@@ -200,10 +187,9 @@ export async function changeRequestStatus(
   if (!updated || updated.length === 0) {
     return {
       ok: false,
-      error:
-        currentStatus === "accepted" && next === "manufacturing"
-          ? "Payment is no longer confirmed for this request. Please refresh and check payment status."
-          : "This request changed status just now. Please refresh and try again.",
+      error: isPaymentGatedTransition(currentStatus, next)
+        ? "Payment is no longer confirmed for this request. Please refresh and check payment status."
+        : "This request changed status just now. Please refresh and try again.",
     };
   }
 
