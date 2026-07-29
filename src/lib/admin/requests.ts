@@ -196,6 +196,32 @@ export async function listRequests(params: ListRequestsParams) {
   };
 }
 
+export interface SidebarCounts {
+  byStatus: Partial<Record<RequestStatus, number>>;
+  suspicious: number;
+}
+
+/**
+ * Cheap counts-only read for the sidebar nav (status shortcut badges + the
+ * suspicious queue link) — deliberately doesn't reuse getRequestStats(),
+ * which also computes margins and decline-reason breakdowns the sidebar
+ * doesn't need.
+ */
+export async function getSidebarCounts(): Promise<SidebarCounts> {
+  const supabase = createServiceClient();
+  const { data } = await supabase.from("manufacturing_requests").select("status, is_suspicious");
+
+  const byStatus: Partial<Record<RequestStatus, number>> = {};
+  let suspicious = 0;
+  for (const row of data ?? []) {
+    const status = row.status as RequestStatus;
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
+    if (row.is_suspicious) suspicious += 1;
+  }
+
+  return { byStatus, suspicious };
+}
+
 export async function getFilterOptions() {
   const supabase = createServiceClient();
   const { data } = await supabase.from("manufacturing_requests").select("country");

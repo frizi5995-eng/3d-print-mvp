@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import { Logo } from "@/components/layout/logo";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { getCurrentUser } from "@/lib/auth/customer";
 import { getAdminUser } from "@/lib/auth/admin";
 
@@ -56,9 +57,12 @@ export async function Header() {
           </Link>
         </nav>
 
-        <Button size="sm" nativeButton={false} render={<Link href="/#upload" />}>
-          Upload model
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" nativeButton={false} render={<Link href="/#upload" />}>
+            Upload model
+          </Button>
+          <MobileNav isSignedIn={Boolean(user)} isAdmin={Boolean(admin)} />
+        </div>
       </Container>
     </header>
   );
