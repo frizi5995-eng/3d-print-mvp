@@ -11,6 +11,7 @@ import { listQuotesForRequest } from "@/lib/admin/supplier-quotes";
 import { listSuppliers } from "@/lib/admin/suppliers";
 import { getPricingRecommendationForRequest } from "@/lib/admin/pricing-engine";
 import { SupplierOptions } from "@/components/admin/supplier-options";
+import { ProductionForm } from "@/components/admin/production-form";
 import { PricingRecommendationPanel } from "@/components/admin/pricing-recommendation";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -54,7 +55,7 @@ export default async function AdminRequestDetailPage({
     activeSuppliers,
     pricingRecommendation,
   ] = await Promise.all([
-      supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
+    supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
       supabase.storage
         .from(MODEL_STORAGE_BUCKET)
         .createSignedUrl(model.storage_path, 300, { download: model.filename }),
@@ -65,6 +66,9 @@ export default async function AdminRequestDetailPage({
       listSuppliers({ active: "active" }),
       getPricingRecommendationForRequest(request.id),
     ]);
+
+  const selectedSupplierName =
+    supplierQuotes.find((q) => q.id === request.selected_supplier_quote_id)?.supplier_name ?? null;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -259,6 +263,26 @@ export default async function AdminRequestDetailPage({
                   stripeConfigured={isStripeConfigured()}
                 />
               </div>
+            </Panel>
+          )}
+
+          {(request.status === "manufacturing" ||
+            request.status === "shipped" ||
+            request.status === "completed") && (
+            <Panel title="Production">
+              {selectedSupplierName && <Field label="Selected supplier" value={selectedSupplierName} />}
+              {request.production_started_at && (
+                <Field label="Production started" value={formatDate(request.production_started_at)} />
+              )}
+              {request.actual_completion_at && (
+                <Field label="Actual completion" value={formatDate(request.actual_completion_at)} />
+              )}
+              <ProductionForm
+                requestId={request.id}
+                estimatedCompletionAt={request.estimated_completion_at}
+                productionNotes={request.production_notes}
+                externalSupplierReference={request.external_supplier_reference}
+              />
             </Panel>
           )}
 

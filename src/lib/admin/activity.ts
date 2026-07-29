@@ -28,6 +28,8 @@ export const ACTIVITY_ACTIONS = [
   "supplier_quote_updated",
   "supplier_quote_selected",
   "pricing_recommendation_applied",
+  "production_info_updated",
+  "shipping_info_updated",
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
@@ -56,6 +58,8 @@ export const ACTIVITY_ACTION_LABELS: Record<ActivityAction, string> = {
   supplier_quote_updated: "Supplier quote updated",
   supplier_quote_selected: "Supplier quote selected",
   pricing_recommendation_applied: "Pricing recommendation applied",
+  production_info_updated: "Production info updated",
+  shipping_info_updated: "Shipping info updated",
 };
 
 /** Used for admin_activity_log entries written by the Stripe webhook, which has no signed-in admin. */

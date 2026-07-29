@@ -85,6 +85,12 @@ export interface ManufacturingRequest {
   paid_at: string | null;
   selected_supplier_quote_id: string | null;
 
+  production_started_at: string | null;
+  estimated_completion_at: string | null;
+  actual_completion_at: string | null;
+  production_notes: string | null;
+  external_supplier_reference: string | null;
+
   created_at: string;
   updated_at: string;
 }

@@ -149,7 +149,7 @@ export async function changeRequestStatus(
 
   const { data: request } = await supabase
     .from("manufacturing_requests")
-    .select("status, payment_status")
+    .select("status, payment_status, production_started_at, actual_completion_at")
     .eq("id", requestId)
     .maybeSingle();
 
@@ -170,9 +170,21 @@ export async function changeRequestStatus(
     };
   }
 
+  const update: Record<string, string> = { status: next };
+  // Record actual timestamps only when the real transition happens — never
+  // backfilled/guessed, and never overwritten if already set (e.g. a
+  // manufacturing -> accepted -> manufacturing correction keeps the
+  // original start time).
+  if (next === "manufacturing" && !request.production_started_at) {
+    update.production_started_at = new Date().toISOString();
+  }
+  if (next === "completed" && !request.actual_completion_at) {
+    update.actual_completion_at = new Date().toISOString();
+  }
+
   let query = supabase
     .from("manufacturing_requests")
-    .update({ status: next })
+    .update(update)
     .eq("id", requestId)
     .eq("status", currentStatus);
   // Re-check payment_status in the same atomic write for this one gated
