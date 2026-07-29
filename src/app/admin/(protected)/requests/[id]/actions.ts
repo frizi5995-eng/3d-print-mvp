@@ -278,3 +278,172 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
         : "Quote prepared, but the email failed to send. Copy the link below.",
   };
 }
+
+export async function resendQuoteEmail(requestId: string): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const supabase = createServiceClient();
+
+  const { data: request } = await supabase
+    .from("manufacturing_requests")
+    .select(
+      "status, reference_number, customer_name, customer_email, customer_manufacturing_price, customer_shipping_price, quote_token, quote_expires_at"
+    )
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (!request) return { ok: false, error: "Request not found." };
+  if (!["quote_ready", "quote_sent"].includes(request.status)) {
+    return { ok: false, error: "This request doesn't have an active quote to resend." };
+  }
+  if (!request.quote_token || !request.quote_expires_at) {
+    return { ok: false, error: "No quote link exists yet. Prepare a quote first." };
+  }
+  if (request.customer_manufacturing_price === null || request.customer_shipping_price === null) {
+    return { ok: false, error: "Customer pricing is missing." };
+  }
+
+  const emailResult = await sendQuoteReadyEmail({
+    customerName: request.customer_name,
+    customerEmail: request.customer_email,
+    referenceNumber: request.reference_number,
+    total: request.customer_manufacturing_price + request.customer_shipping_price,
+    expiresAt: request.quote_expires_at,
+    quoteUrl: `${getAppUrl()}/q/${request.quote_token}`,
+  }).catch((err: unknown): { sent: false; reason: "error"; message: string } => ({
+    sent: false,
+    reason: "error",
+    message: err instanceof Error ? err.message : "unexpected",
+  }));
+
+  if (!emailResult.sent) {
+    if (emailResult.reason === "not_configured") {
+      return { ok: false, error: "Email isn't configured yet. Use Copy quote link instead." };
+    }
+    console.error(`Resend quote email failed for request ${requestId}:`, emailResult.message);
+    return { ok: false, error: "Could not send the email. Please try again." };
+  }
+
+  if (request.status === "quote_ready") {
+    await supabase
+      .from("manufacturing_requests")
+      .update({ status: "quote_sent" })
+      .eq("id", requestId)
+      .eq("status", "quote_ready");
+  }
+
+  await logAdminActivity(admin.email!, "quote_resent", requestId);
+  revalidatePath(`/admin/requests/${requestId}`);
+  revalidatePath("/admin/requests");
+  return { ok: true, message: "Quote email resent." };
+}
+
+export async function extendQuoteExpiry(requestId: string): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const supabase = createServiceClient();
+
+  const { data: request } = await supabase
+    .from("manufacturing_requests")
+    .select("status, quote_token")
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (!request) return { ok: false, error: "Request not found." };
+  if (!request.quote_token || !["quote_ready", "quote_sent"].includes(request.status)) {
+    return { ok: false, error: "No active quote to extend." };
+  }
+
+  const newExpiry = new Date();
+  newExpiry.setDate(newExpiry.getDate() + QUOTE_VALIDITY_DAYS);
+
+  const { error } = await supabase
+    .from("manufacturing_requests")
+    .update({ quote_expires_at: newExpiry.toISOString() })
+    .eq("id", requestId);
+
+  if (error) return { ok: false, error: "Could not extend the quote. Please try again." };
+
+  await logAdminActivity(admin.email!, "quote_expiry_extended", requestId, {
+    new_expiry: newExpiry.toISOString(),
+  });
+  revalidatePath(`/admin/requests/${requestId}`);
+  return { ok: true, message: `Quote extended by ${QUOTE_VALIDITY_DAYS} days.` };
+}
+
+export interface NotesFormState {
+  status: "idle" | "success" | "error";
+  error?: string;
+}
+
+const notesSchema = z.object({ requestId: z.uuid(), notes: z.string().max(5000).optional() });
+
+export async function updateInternalNotes(
+  _prevState: NotesFormState,
+  formData: FormData
+): Promise<NotesFormState> {
+  const admin = await requireAdminUser();
+  const parsed = notesSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { status: "error", error: "Invalid input." };
+
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("manufacturing_requests")
+    .update({ internal_notes: parsed.data.notes?.trim() || null })
+    .eq("id", parsed.data.requestId);
+
+  if (error) return { status: "error", error: "Could not save notes." };
+
+  await logAdminActivity(admin.email!, "internal_note_updated", parsed.data.requestId);
+  revalidatePath(`/admin/requests/${parsed.data.requestId}`);
+  return { status: "success" };
+}
+
+export async function toggleTag(requestId: string, tag: string): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const supabase = createServiceClient();
+
+  const { data: request } = await supabase
+    .from("manufacturing_requests")
+    .select("tags")
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (!request) return { ok: false, error: "Request not found." };
+  const current: string[] = request.tags ?? [];
+  const next = current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag];
+
+  const { error } = await supabase
+    .from("manufacturing_requests")
+    .update({ tags: next })
+    .eq("id", requestId);
+
+  if (error) return { ok: false, error: "Could not update tags." };
+
+  await logAdminActivity(admin.email!, "tags_updated", requestId, { tags: next });
+  revalidatePath(`/admin/requests/${requestId}`);
+  return { ok: true };
+}
+
+export async function setSuspicious(
+  requestId: string,
+  isSuspicious: boolean,
+  reason?: string
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const supabase = createServiceClient();
+
+  const { error } = await supabase
+    .from("manufacturing_requests")
+    .update({
+      is_suspicious: isSuspicious,
+      spam_reason: isSuspicious ? reason?.trim() || null : null,
+    })
+    .eq("id", requestId);
+
+  if (error) return { ok: false, error: "Could not update." };
+
+  await logAdminActivity(admin.email!, "flagged_suspicious", requestId, { isSuspicious, reason });
+  revalidatePath(`/admin/requests/${requestId}`);
+  revalidatePath("/admin/requests");
+  revalidatePath("/admin/dashboard");
+  return { ok: true, message: isSuspicious ? "Flagged as suspicious." : "Suspicious flag removed." };
+}

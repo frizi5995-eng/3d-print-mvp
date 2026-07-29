@@ -203,6 +203,24 @@ export async function getFilterOptions() {
   return { countries };
 }
 
+/**
+ * Grouped by customer_user_id when registered, else by normalized email for
+ * guests — display purposes only, matching email is never treated as
+ * verified identity (see Milestone 17's /admin/customers for the same rule).
+ */
+export async function getCustomerRequestCounts(customerUserId: string | null, email: string) {
+  const supabase = createServiceClient();
+  let query = supabase.from("manufacturing_requests").select("status");
+  query = customerUserId ? query.eq("customer_user_id", customerUserId) : query.ilike("customer_email", email);
+
+  const { data } = await query;
+  const rows = data ?? [];
+  return {
+    total: rows.length,
+    accepted: rows.filter((r) => r.status === "accepted" || r.status === "manufacturing" || r.status === "shipped" || r.status === "completed").length,
+  };
+}
+
 export interface RequestStats {
   total: number;
   byStatus: Record<RequestStatus, number>;

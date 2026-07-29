@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Download, Mail, Phone } from "lucide-react";
-import { getRequestById } from "@/lib/admin/requests";
+import { getRequestById, getCustomerRequestCounts } from "@/lib/admin/requests";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
@@ -10,6 +10,10 @@ import { PricingPanel } from "@/components/admin/pricing-panel";
 import { StatusActions } from "@/components/admin/status-actions";
 import { HistoryList } from "@/components/admin/history-list";
 import { CopyQuoteLink } from "@/components/admin/copy-quote-link";
+import { QuoteControls } from "@/components/admin/quote-controls";
+import { InternalNotes } from "@/components/admin/internal-notes";
+import { TagsEditor } from "@/components/admin/tags-editor";
+import { SuspiciousToggle } from "@/components/admin/suspicious-toggle";
 import { formatDate } from "@/lib/utils";
 import { STATUS_LABELS } from "@/lib/constants";
 import { getAppUrl } from "@/lib/env";
@@ -29,11 +33,12 @@ export default async function AdminRequestDetailPage({
   const history = result.history as unknown as StatusHistoryEntry[];
 
   const supabase = createServiceClient();
-  const [{ data: previewSigned }, { data: downloadSigned }] = await Promise.all([
+  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts] = await Promise.all([
     supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
     supabase.storage
       .from(MODEL_STORAGE_BUCKET)
       .createSignedUrl(model.storage_path, 300, { download: model.filename }),
+    getCustomerRequestCounts(request.customer_user_id, request.customer_email),
   ]);
 
   return (
@@ -82,6 +87,15 @@ export default async function AdminRequestDetailPage({
             />
             <Field label="Country" value={request.country} />
             <Field label="Postal code" value={request.postal_code} />
+            <Field label="Account" value={request.customer_user_id ? "Registered" : "Guest"} />
+            <Field label="Requests from this customer" value={String(customerCounts.total)} />
+            <Field label="Accepted from this customer" value={String(customerCounts.accepted)} />
+            <Link
+              href={`/admin/customers/${request.customer_user_id ? "u/" + request.customer_user_id : "e/" + encodeURIComponent(request.customer_email)}`}
+              className="text-sm text-primary hover:underline"
+            >
+              View customer
+            </Link>
           </Panel>
 
           <Panel title="Model">
@@ -142,6 +156,10 @@ export default async function AdminRequestDetailPage({
           {request.quote_token && (
             <Panel title="Customer quote link">
               <CopyQuoteLink url={`${getAppUrl()}/q/${request.quote_token}`} />
+              {request.quote_expires_at && (
+                <Field label="Expires" value={formatDate(request.quote_expires_at)} />
+              )}
+              <QuoteControls requestId={request.id} status={request.status} />
             </Panel>
           )}
 
@@ -150,7 +168,7 @@ export default async function AdminRequestDetailPage({
           </Panel>
         </div>
 
-        <div>
+        <div className="flex flex-col gap-6">
           <Panel title="Production & customer quote">
             <PricingPanel
               requestId={request.id}
@@ -163,6 +181,27 @@ export default async function AdminRequestDetailPage({
                 customerShippingPrice: request.customer_shipping_price,
               }}
             />
+          </Panel>
+
+          <Panel title="Internal operations">
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Tags</p>
+                <TagsEditor requestId={request.id} initialTags={request.tags} />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Notes</p>
+                <InternalNotes requestId={request.id} initialNotes={request.internal_notes ?? ""} />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Spam review</p>
+                <SuspiciousToggle
+                  requestId={request.id}
+                  isSuspicious={request.is_suspicious}
+                  spamReason={request.spam_reason}
+                />
+              </div>
+            </div>
           </Panel>
         </div>
       </div>
