@@ -149,7 +149,7 @@ export async function changeRequestStatus(
 
   const { data: request } = await supabase
     .from("manufacturing_requests")
-    .select("status, payment_status, production_started_at, actual_completion_at")
+    .select("status, payment_status, production_started_at, actual_completion_at, shipped_at")
     .eq("id", requestId)
     .maybeSingle();
 
@@ -180,6 +180,9 @@ export async function changeRequestStatus(
   }
   if (next === "completed" && !request.actual_completion_at) {
     update.actual_completion_at = new Date().toISOString();
+  }
+  if (next === "shipped" && !request.shipped_at) {
+    update.shipped_at = new Date().toISOString();
   }
 
   let query = supabase

@@ -12,6 +12,7 @@ import { listSuppliers } from "@/lib/admin/suppliers";
 import { getPricingRecommendationForRequest } from "@/lib/admin/pricing-engine";
 import { SupplierOptions } from "@/components/admin/supplier-options";
 import { ProductionForm } from "@/components/admin/production-form";
+import { ShippingForm } from "@/components/admin/shipping-form";
 import { PricingRecommendationPanel } from "@/components/admin/pricing-recommendation";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -282,6 +283,22 @@ export default async function AdminRequestDetailPage({
                 estimatedCompletionAt={request.estimated_completion_at}
                 productionNotes={request.production_notes}
                 externalSupplierReference={request.external_supplier_reference}
+              />
+            </Panel>
+          )}
+
+          {(request.status === "shipped" || request.status === "completed") && (
+            <Panel title="Shipping">
+              {request.shipped_at && <Field label="Shipped" value={formatDate(request.shipped_at)} />}
+              <ShippingForm
+                requestId={request.id}
+                initial={{
+                  carrier: request.carrier,
+                  tracking_number: request.tracking_number,
+                  tracking_url: request.tracking_url,
+                  estimated_delivery_at: request.estimated_delivery_at,
+                  delivered_at: request.delivered_at,
+                }}
               />
             </Panel>
           )}

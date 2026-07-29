@@ -140,6 +140,29 @@ export default async function MyRequestDetailPage({
             </section>
           )}
 
+          {(request.status === "shipped" || request.status === "completed") && request.tracking_number && (
+            <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+              <h2 className="text-sm font-medium text-muted-foreground">Shipping</h2>
+              {request.carrier && <Field label="Carrier" value={request.carrier} />}
+              <Field
+                label="Tracking"
+                value={
+                  request.tracking_url ? (
+                    <a href={request.tracking_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                      {request.tracking_number}
+                    </a>
+                  ) : (
+                    request.tracking_number
+                  )
+                }
+              />
+              {request.estimated_delivery_at && (
+                <Field label="Estimated delivery" value={formatDateTime(request.estimated_delivery_at)} />
+              )}
+              {request.delivered_at && <Field label="Delivered" value={formatDateTime(request.delivered_at)} />}
+            </section>
+          )}
+
           <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
             <h2 className="text-sm font-medium text-muted-foreground">History</h2>
             <HistoryList history={history} />
@@ -150,7 +173,7 @@ export default async function MyRequestDetailPage({
   );
 }
 
-function Field({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Field({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted-foreground">{label}</span>

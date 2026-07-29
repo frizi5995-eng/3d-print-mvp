@@ -91,6 +91,13 @@ export interface ManufacturingRequest {
   production_notes: string | null;
   external_supplier_reference: string | null;
 
+  carrier: string | null;
+  tracking_number: string | null;
+  tracking_url: string | null;
+  shipped_at: string | null;
+  estimated_delivery_at: string | null;
+  delivered_at: string | null;
+
   created_at: string;
   updated_at: string;
 }
