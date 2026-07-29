@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
 import { getInvoiceDisplay } from "@/lib/stripe/invoicing";
 import { PaymentSummary } from "@/components/account/payment-summary";
+import { getNextStepMessage } from "@/lib/customer/next-step";
 import { formatDateTime, isPast } from "@/lib/utils";
 import { formatEUR } from "@/lib/admin/money";
 import type { ManufacturingRequest, Model, ModelFileType, StatusHistoryEntry } from "@/types";
@@ -73,6 +74,11 @@ export default async function MyRequestDetailPage({
         <p className="text-sm text-muted-foreground">
           Submitted {formatDateTime(request.created_at)}
         </p>
+      </div>
+
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
+        <span className="font-medium text-primary">What happens next: </span>
+        {getNextStepMessage(request.status, request.payment_status)}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[11fr_9fr] lg:items-start">

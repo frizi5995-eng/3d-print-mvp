@@ -1,6 +1,6 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { RequestStatus } from "@/types";
+import type { PaymentStatus, RequestStatus } from "@/types";
 
 const PAGE_SIZE = 20;
 
@@ -117,4 +117,37 @@ export async function getMyRequestById(userId: string, id: string) {
     model: unwrapOne(models as Record<string, unknown> | Record<string, unknown>[] | null),
     history: history ?? [],
   };
+}
+
+export interface DashboardCounts {
+  active: number;
+  quotesRequiringAction: number;
+  awaitingPayment: number;
+  manufacturing: number;
+  shipped: number;
+  completed: number;
+}
+
+/** Scoped by customer_user_id, same as every other query in this file. */
+export async function getMyDashboardCounts(userId: string): Promise<DashboardCounts> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("manufacturing_requests")
+    .select("status, payment_status")
+    .eq("customer_user_id", userId);
+
+  const rows = (data ?? []) as { status: RequestStatus; payment_status: PaymentStatus }[];
+
+  return rows.reduce<DashboardCounts>(
+    (acc, row) => {
+      if (row.status !== "declined" && row.status !== "completed") acc.active += 1;
+      if (row.status === "quote_ready" || row.status === "quote_sent") acc.quotesRequiringAction += 1;
+      if (row.status === "accepted" && row.payment_status !== "paid") acc.awaitingPayment += 1;
+      if (row.status === "manufacturing") acc.manufacturing += 1;
+      if (row.status === "shipped") acc.shipped += 1;
+      if (row.status === "completed") acc.completed += 1;
+      return acc;
+    },
+    { active: 0, quotesRequiringAction: 0, awaitingPayment: 0, manufacturing: 0, shipped: 0, completed: 0 }
+  );
 }
