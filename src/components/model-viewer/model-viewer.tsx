@@ -5,13 +5,22 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Canvas, useLoader } from "@react-three/fiber";
-import { OrbitControls, Stage, Center, Grid, Loader } from "@react-three/drei";
+import {
+  OrbitControls,
+  PerspectiveCamera,
+  Center,
+  Grid,
+  Loader,
+  ContactShadows,
+} from "@react-three/drei";
 import { STLLoader, OBJLoader, ThreeMFLoader } from "three-stdlib";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
@@ -37,25 +46,53 @@ function useReportRadius(
   useEffect(() => onMeasured(radius), [radius, onMeasured]);
 }
 
+/**
+ * Physically-based neutral gray finish applied uniformly to every uploaded
+ * model, regardless of source format or any material/texture embedded in the
+ * file — keeps the preview presentation consistent and reads like the
+ * print-plastic the model will actually be manufactured in.
+ */
+function createViewerMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: "#c9ccd2",
+    roughness: 0.45,
+    metalness: 0.06,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.3,
+  });
+}
+
+function applyViewerMaterial(object: THREE.Object3D) {
+  const material = createViewerMaterial();
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.material = material;
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+}
+
 function StlModel({ url, onMeasured }: { url: string; onMeasured: (radius: number) => void }) {
   const geometry = useLoader(STLLoader, url);
   useReportRadius(geometry, onMeasured);
-  return (
-    <mesh geometry={geometry} castShadow receiveShadow>
-      <meshStandardMaterial color="#c7ccd6" roughness={0.55} metalness={0.08} />
-    </mesh>
-  );
+  const material = useMemo(() => createViewerMaterial(), []);
+  return <mesh geometry={geometry} material={material} castShadow receiveShadow />;
 }
 
 function ObjModel({ url, onMeasured }: { url: string; onMeasured: (radius: number) => void }) {
   const object = useLoader(OBJLoader, url);
   useReportRadius(object, onMeasured);
+  // useLayoutEffect (not useEffect) so the override lands before the next
+  // WebGL frame paints — otherwise the file's own material flashes briefly.
+  useLayoutEffect(() => applyViewerMaterial(object), [object]);
   return <primitive object={object} />;
 }
 
 function ThreeMfModel({ url, onMeasured }: { url: string; onMeasured: (radius: number) => void }) {
   const object = useLoader(ThreeMFLoader, url);
   useReportRadius(object, onMeasured);
+  useLayoutEffect(() => applyViewerMaterial(object), [object]);
   return <primitive object={object} />;
 }
 
@@ -91,6 +128,78 @@ function TechnicalFloor({ radius }: { radius: number }) {
   );
 }
 
+/**
+ * Hand-authored three-point studio rig (key/fill/rim), scaled to the model's
+ * bounding radius so it reads correctly at any print size. Deliberately no
+ * HDRI/environment map — that would pull an external CDN asset into a viewer
+ * that otherwise has zero third-party runtime dependencies (matches the
+ * dependency-free pattern used for dashboard charts elsewhere in this app).
+ */
+function StudioLighting({ radius }: { radius: number }) {
+  const d = radius * 3;
+  return (
+    <>
+      <hemisphereLight args={["#ffffff", "#3a3d44", 0.35]} />
+      {/* Key: primary shadow-casting light, front-upper-right */}
+      <directionalLight
+        position={[d * 0.6, d * 0.9, d * 0.7]}
+        intensity={1.5}
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-near={0.1}
+        shadow-camera-far={d * 4}
+        shadow-camera-left={-radius * 2}
+        shadow-camera-right={radius * 2}
+        shadow-camera-top={radius * 2}
+        shadow-camera-bottom={-radius * 2}
+      />
+      {/* Fill: softens key-light shadows from the opposite side, no shadow of its own */}
+      <directionalLight position={[-d * 0.8, d * 0.35, d * 0.4]} intensity={0.5} color="#dfe6ff" />
+      {/* Rim: backlight that separates the model's silhouette from the background */}
+      <directionalLight position={[-d * 0.2, d * 0.6, -d * 0.9]} intensity={0.7} color="#ffffff" />
+    </>
+  );
+}
+
+/**
+ * Frames the camera to the model's measured bounding radius. Replaces drei's
+ * <Stage adjustCamera>, which was removed so the lighting above could be
+ * hand-authored instead of relying on Stage's baked-in environment lighting.
+ *
+ * Takes plain refs (owned by the parent via useRef), not the camera/controls
+ * returned by useThree() — mutating those directly trips the
+ * react-hooks/immutability lint, since a ref's .current is the only object
+ * React's hooks rules treat as safe to mutate imperatively.
+ */
+function AutoFrameCamera({
+  radius,
+  cameraRef,
+  controlsRef,
+}: {
+  radius: number;
+  cameraRef: RefObject<THREE.PerspectiveCamera | null>;
+  controlsRef: RefObject<OrbitControlsImpl | null>;
+}) {
+  useEffect(() => {
+    const camera = cameraRef.current;
+    if (!camera) return;
+
+    const distance = radius * 2.8;
+    camera.position.set(distance * 0.62, distance * 0.5, distance * 0.62);
+    camera.near = Math.max(radius / 100, 0.01);
+    camera.far = radius * 30;
+    camera.updateProjectionMatrix();
+
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  }, [radius, cameraRef, controlsRef]);
+
+  return null;
+}
+
 class ViewerErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
 
@@ -123,6 +232,7 @@ export function ModelViewer({
   fileSize?: number;
 }) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [radius, setRadius] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -158,17 +268,38 @@ export function ModelViewer({
       )}
 
       <ViewerErrorBoundary>
-        <Canvas shadows camera={{ position: [3, 2, 3], fov: 45 }} dpr={[1, 2]}>
+        <Canvas shadows dpr={[1, 2]}>
+          <PerspectiveCamera ref={cameraRef} makeDefault position={[3, 2, 3]} fov={45} />
           <color attach="background" args={["#0d0e11"]} />
           <Suspense fallback={null}>
-            <Stage adjustCamera intensity={0.7} environment={null} shadows={false} preset="soft">
-              <Center>
-                <Model url={url} fileType={fileType} onMeasured={handleMeasured} />
-              </Center>
-            </Stage>
-            {radius && <TechnicalFloor radius={radius} />}
+            <Center>
+              <Model url={url} fileType={fileType} onMeasured={handleMeasured} />
+            </Center>
+            {radius !== null && (
+              <>
+                <StudioLighting radius={radius} />
+                <AutoFrameCamera radius={radius} cameraRef={cameraRef} controlsRef={controlsRef} />
+                <TechnicalFloor radius={radius} />
+                <ContactShadows
+                  position={[0, -radius * 1.0, 0]}
+                  opacity={0.35}
+                  blur={2.6}
+                  far={radius * 3}
+                  scale={radius * 6}
+                  resolution={512}
+                  color="#000000"
+                />
+              </>
+            )}
           </Suspense>
-          <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.1} />
+          <OrbitControls
+            ref={controlsRef}
+            makeDefault
+            enableDamping
+            dampingFactor={0.1}
+            minDistance={radius ? radius * 0.6 : 0.1}
+            maxDistance={radius ? radius * 8 : 100}
+          />
         </Canvas>
       </ViewerErrorBoundary>
 
