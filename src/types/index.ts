@@ -83,6 +83,7 @@ export interface ManufacturingRequest {
   stripe_invoice_id: string | null;
   stripe_payment_intent_id: string | null;
   paid_at: string | null;
+  selected_supplier_quote_id: string | null;
 
   created_at: string;
   updated_at: string;
@@ -97,6 +98,50 @@ export interface StatusHistoryEntry {
 
 export interface ManufacturingRequestWithModel extends ManufacturingRequest {
   model: Model;
+}
+
+export const SUPPLIER_TECHNOLOGIES = ["FDM", "SLA", "SLS", "MJF", "DMLS_METAL", "OTHER"] as const;
+export type SupplierTechnology = (typeof SUPPLIER_TECHNOLOGIES)[number];
+
+export interface Supplier {
+  id: string;
+  name: string;
+  country: string;
+  website: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  active: boolean;
+  notes: string | null;
+  technologies: string[];
+  materials: string[];
+  api_provider: string | null;
+  api_enabled: boolean;
+  preferred: boolean;
+  reliability_score: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SupplierQuoteSource = "manual" | "api_estimate" | "api_confirmed";
+export type SupplierQuoteStatus = "active" | "rejected" | "expired";
+
+export interface SupplierQuote {
+  id: string;
+  request_id: string;
+  supplier_id: string;
+  manufacturing_cost: number;
+  supplier_shipping_cost: number;
+  other_cost: number;
+  currency: string;
+  lead_time_days_min: number | null;
+  lead_time_days_max: number | null;
+  valid_until: string | null;
+  source: SupplierQuoteSource;
+  status: SupplierQuoteStatus;
+  external_quote_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AdminActivityLogEntry {

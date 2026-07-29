@@ -24,6 +24,7 @@ const SIDEBAR_STATUSES: (RequestStatus | "all")[] = [
 const TOP_LINKS = [
   { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/customers", label: "Customers" },
+  { href: "/admin/suppliers", label: "Suppliers" },
   { href: "/admin/activity", label: "Activity" },
   { href: "/admin/settings", label: "Settings" },
 ];

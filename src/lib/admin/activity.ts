@@ -22,6 +22,12 @@ export const ACTIVITY_ACTIONS = [
   "payment_voided",
   "payment_refunded",
   "payment_marked_paid_manually",
+  "supplier_created",
+  "supplier_updated",
+  "supplier_quote_added",
+  "supplier_quote_updated",
+  "supplier_quote_selected",
+  "pricing_recommendation_applied",
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
@@ -44,6 +50,12 @@ export const ACTIVITY_ACTION_LABELS: Record<ActivityAction, string> = {
   payment_voided: "Invoice voided",
   payment_refunded: "Payment refunded",
   payment_marked_paid_manually: "Payment marked paid (manual override)",
+  supplier_created: "Supplier created",
+  supplier_updated: "Supplier updated",
+  supplier_quote_added: "Supplier quote added",
+  supplier_quote_updated: "Supplier quote updated",
+  supplier_quote_selected: "Supplier quote selected",
+  pricing_recommendation_applied: "Pricing recommendation applied",
 };
 
 /** Used for admin_activity_log entries written by the Stripe webhook, which has no signed-in admin. */
