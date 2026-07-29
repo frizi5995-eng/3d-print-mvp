@@ -44,7 +44,7 @@ export interface ListRequestsParams {
 }
 
 const LIST_COLUMNS =
-  "id, reference_number, status, customer_name, customer_email, customer_user_id, is_suspicious, material, country, created_at, updated_at, quote_token, quote_expires_at, production_cost, production_shipping_cost, other_cost, customer_manufacturing_price, customer_shipping_price, model_id, models(filename)";
+  "id, reference_number, status, customer_name, customer_email, customer_user_id, is_suspicious, material, country, quantity, created_at, updated_at, quote_token, quote_expires_at, production_cost, production_shipping_cost, other_cost, customer_manufacturing_price, customer_shipping_price, model_id, models(filename)";
 
 export interface RequestListRow {
   id: string;
@@ -108,10 +108,12 @@ function toListRow(row: Record<string, unknown>): RequestListRow {
   };
 }
 
-export async function listRequests(params: ListRequestsParams) {
-  const { status, search, accountType, suspicious, material, country, dateFrom, dateTo, quoteExpiry, hasPrice, sort = "newest", page = 1 } =
+async function buildFilteredQuery(
+  supabase: ReturnType<typeof createServiceClient>,
+  params: ListRequestsParams
+) {
+  const { status, search, accountType, suspicious, material, country, dateFrom, dateTo, quoteExpiry, hasPrice } =
     params;
-  const supabase = createServiceClient();
   const cleanSearch = search ? sanitizeSearchTerm(search) : "";
 
   let modelIds: string[] = [];
@@ -161,6 +163,18 @@ export async function listRequests(params: ListRequestsParams) {
     query = query.or(orParts.join(","));
   }
 
+  // Wrapped in an object, not returned bare: a Supabase query builder is
+  // thenable, and an async function auto-awaits a thenable return value —
+  // callers would get back the already-executed PostgrestResponse instead
+  // of the still-composable builder.
+  return { query };
+}
+
+export async function listRequests(params: ListRequestsParams) {
+  const { sort = "newest", page = 1 } = params;
+  const supabase = createServiceClient();
+  const { query } = await buildFilteredQuery(supabase, params);
+
   // value/margin sorting needs the computed field, which PostgREST can't
   // sort by directly — fetch every filtered row (fine at MVP volumes),
   // compute + sort in JS, then slice the page. Plain column sorts stay
@@ -179,14 +193,14 @@ export async function listRequests(params: ListRequestsParams) {
     return { rows: rows.slice(from, from + PAGE_SIZE), total, page, pageSize: PAGE_SIZE };
   }
 
-  query = query.order(
+  const ordered = query.order(
     sort === "oldest" ? "created_at" : sort === "updated" ? "updated_at" : "created_at",
     { ascending: sort === "oldest" }
   );
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
-  const { data, count } = await query.range(from, to);
+  const { data, count } = await ordered.range(from, to);
 
   return {
     rows: (data ?? []).map(toListRow),
@@ -194,6 +208,90 @@ export async function listRequests(params: ListRequestsParams) {
     page,
     pageSize: PAGE_SIZE,
   };
+}
+
+export interface ExportRow {
+  reference_number: number;
+  status: RequestStatus;
+  customer_name: string;
+  customer_email: string;
+  country: string;
+  material: string;
+  quantity: number;
+  customer_total: number | null;
+  internal_cost: number | null;
+  gross_profit: number | null;
+  margin_percent: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Safety bound on a single export — far above any realistic MVP volume, but
+// keeps a runaway filter (or a huge future dataset) from generating an
+// unbounded in-memory CSV.
+const EXPORT_ROW_LIMIT = 10000;
+
+/**
+ * Same filters as listRequests(), but unpaginated and mapped to only the
+ * fields safe to hand to an admin as a spreadsheet: no quote tokens, no
+ * signed URLs, no internal notes/tags, no customer phone/postal code.
+ */
+export async function listRequestsForExport(
+  params: Omit<ListRequestsParams, "page">
+): Promise<{ rows: ExportRow[]; truncated: boolean }> {
+  const { sort = "newest" } = params;
+  const supabase = createServiceClient();
+  const { query } = await buildFilteredQuery(supabase, params);
+
+  const ordered = query.order(
+    sort === "oldest" ? "created_at" : sort === "updated" ? "updated_at" : "created_at",
+    { ascending: sort === "oldest" }
+  );
+
+  const { data } = await ordered.limit(EXPORT_ROW_LIMIT + 1);
+  const allRows = data ?? [];
+  const truncated = allRows.length > EXPORT_ROW_LIMIT;
+  const boundedRows = truncated ? allRows.slice(0, EXPORT_ROW_LIMIT) : allRows;
+
+  let rows: ExportRow[] = boundedRows.map((row) => {
+    const listRow = toListRow(row);
+    const hasFullCosting =
+      row.production_cost !== null && row.production_shipping_cost !== null && row.other_cost !== null;
+    const internalCost = hasFullCosting
+      ? (row.production_cost as number) + (row.production_shipping_cost as number) + (row.other_cost as number)
+      : null;
+    const marginPercent =
+      listRow.customer_total !== null && listRow.customer_total > 0 && listRow.margin !== null
+        ? (listRow.margin / listRow.customer_total) * 100
+        : null;
+
+    return {
+      reference_number: listRow.reference_number,
+      status: listRow.status,
+      customer_name: listRow.customer_name,
+      customer_email: listRow.customer_email,
+      country: listRow.country,
+      material: listRow.material,
+      quantity: row.quantity as number,
+      customer_total: listRow.customer_total,
+      internal_cost: internalCost,
+      gross_profit: listRow.margin,
+      margin_percent: marginPercent,
+      created_at: listRow.created_at,
+      updated_at: listRow.updated_at,
+    };
+  });
+
+  if (sort === "value_desc" || sort === "margin_desc" || sort === "margin_asc") {
+    rows =
+      sort === "value_desc"
+        ? rows.sort((a, b) => (b.customer_total ?? -Infinity) - (a.customer_total ?? -Infinity))
+        : sort === "margin_desc"
+          ? rows.sort((a, b) => (b.gross_profit ?? -Infinity) - (a.gross_profit ?? -Infinity))
+          : rows.sort((a, b) => (a.gross_profit ?? Infinity) - (b.gross_profit ?? Infinity));
+  }
+
+  return { rows, truncated };
 }
 
 export interface SidebarCounts {

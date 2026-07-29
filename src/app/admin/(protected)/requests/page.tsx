@@ -104,9 +104,39 @@ export default async function AdminRequestsPage({
     return qs ? `/admin/requests?${qs}` : "/admin/requests";
   };
 
+  const exportHref = () => {
+    const merged: Record<string, string | undefined> = {
+      status,
+      q: search,
+      account: accountType,
+      suspicious,
+      material,
+      country,
+      hasPrice,
+      quoteExpiry,
+      sort,
+      from: dateFrom,
+      to: dateTo,
+    };
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(merged)) {
+      if (value && value !== "all") next.set(key, value);
+    }
+    const qs = next.toString();
+    return qs ? `/admin/requests/export?${qs}` : "/admin/requests/export";
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6">
-      <h1 className="text-xl font-semibold tracking-tight">Requests</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight">Requests</h1>
+        <a
+          href={exportHref()}
+          className="inline-flex h-8 items-center justify-center rounded-lg border border-input px-3 text-sm font-medium transition-colors hover:bg-surface-elevated"
+        >
+          Export CSV
+        </a>
+      </div>
 
       <form className="flex flex-col gap-3" action="/admin/requests" method="GET">
         <div className="flex flex-wrap items-center gap-3">

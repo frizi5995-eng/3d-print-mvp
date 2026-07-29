@@ -14,6 +14,7 @@ export const ACTIVITY_ACTIONS = [
   "tags_updated",
   "flagged_suspicious",
   "settings_updated",
+  "requests_exported",
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
@@ -28,6 +29,7 @@ export const ACTIVITY_ACTION_LABELS: Record<ActivityAction, string> = {
   tags_updated: "Tags updated",
   flagged_suspicious: "Spam flag changed",
   settings_updated: "Settings updated",
+  requests_exported: "Requests exported (CSV)",
 };
 
 /** The fixed set of admin emails authorized to act — same allowlist auth uses, for the filter dropdown. */
