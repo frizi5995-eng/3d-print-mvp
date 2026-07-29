@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { loginCustomer, type LoginState } from "@/app/(site)/login/actions";
+import { GoogleAuthButton } from "@/components/account/google-auth-button";
 
 const initialState: LoginState = {};
 
@@ -13,7 +14,16 @@ export function LoginForm() {
   const [state, formAction, isPending] = useActionState(loginCustomer, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
+      <GoogleAuthButton />
+
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="h-px flex-1 bg-border" />
+        or
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <form action={formAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input id="email" name="email" type="email" autoComplete="email" required />
@@ -46,6 +56,7 @@ export function LoginForm() {
           Create one
         </Link>
       </p>
-    </form>
+      </form>
+    </div>
   );
 }
