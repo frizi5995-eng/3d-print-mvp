@@ -179,45 +179,6 @@ export default async function AdminRequestDetailPage({
             )}
           </Panel>
 
-          {(request.status === "accepted" ||
-            request.status === "manufacturing" ||
-            request.status === "shipped" ||
-            request.status === "completed") && (
-            <Panel title="Payment">
-              <Field label="Payment status" value={<PaymentStatusBadge status={request.payment_status} />} />
-              {invoice && (
-                <>
-                  <Field label="Invoice status" value={invoice.status} />
-                  <Field label="Invoice number" value={invoice.number ?? "—"} />
-                  <Field label="Amount due" value={formatEUR(invoice.amountDue)} />
-                  {invoice.amountPaid > 0 && (
-                    <Field label="Amount paid" value={formatEUR(invoice.amountPaid)} />
-                  )}
-                </>
-              )}
-              {request.paid_at && <Field label="Paid at" value={formatDateTime(request.paid_at)} />}
-              {invoice?.hostedInvoiceUrl && (
-                <a
-                  href={invoice.hostedInvoiceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex w-fit items-center gap-1.5 text-sm text-primary hover:underline"
-                >
-                  <ExternalLink className="size-3.5" />
-                  Open hosted invoice page
-                </a>
-              )}
-              <div className="mt-1">
-                <PaymentActions
-                  requestId={request.id}
-                  paymentStatus={request.payment_status}
-                  hasInvoice={Boolean(request.stripe_invoice_id)}
-                  stripeConfigured={isStripeConfigured()}
-                />
-              </div>
-            </Panel>
-          )}
-
           {request.quote_token && (
             <Panel title="Customer quote link">
               <CopyQuoteLink url={`${getAppUrl()}/q/${request.quote_token}`} />
@@ -261,6 +222,45 @@ export default async function AdminRequestDetailPage({
               }}
             />
           </Panel>
+
+          {(request.status === "accepted" ||
+            request.status === "manufacturing" ||
+            request.status === "shipped" ||
+            request.status === "completed") && (
+            <Panel title="Payment">
+              <Field label="Payment status" value={<PaymentStatusBadge status={request.payment_status} />} />
+              {invoice && (
+                <>
+                  <Field label="Invoice status" value={invoice.status} />
+                  <Field label="Invoice number" value={invoice.number ?? "—"} />
+                  <Field label="Amount due" value={formatEUR(invoice.amountDue)} />
+                  {invoice.amountPaid > 0 && (
+                    <Field label="Amount paid" value={formatEUR(invoice.amountPaid)} />
+                  )}
+                </>
+              )}
+              {request.paid_at && <Field label="Paid at" value={formatDateTime(request.paid_at)} />}
+              {invoice?.hostedInvoiceUrl && (
+                <a
+                  href={invoice.hostedInvoiceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-fit items-center gap-1.5 text-sm text-primary hover:underline"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Open hosted invoice page
+                </a>
+              )}
+              <div className="mt-1">
+                <PaymentActions
+                  requestId={request.id}
+                  paymentStatus={request.payment_status}
+                  hasInvoice={Boolean(request.stripe_invoice_id)}
+                  stripeConfigured={isStripeConfigured()}
+                />
+              </div>
+            </Panel>
+          )}
 
           <Panel title="Internal operations">
             <div className="flex flex-col gap-4">
