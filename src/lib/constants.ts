@@ -34,6 +34,12 @@ export const STATUS_ORDER: RequestStatus[] = [
   "completed",
 ];
 
+export const NEXT_ACTION_LABELS: Partial<Record<RequestStatus, string>> = {
+  accepted: "Start manufacturing",
+  manufacturing: "Mark shipped",
+  shipped: "Mark completed",
+};
+
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   unpaid: "Unpaid",
   invoice_sent: "Invoice sent",

@@ -152,12 +152,6 @@ const WORKFLOW_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
   completed: ["shipped"],
 };
 
-export const NEXT_ACTION_LABELS: Partial<Record<RequestStatus, string>> = {
-  accepted: "Start manufacturing",
-  manufacturing: "Mark shipped",
-  shipped: "Mark completed",
-};
-
 export async function changeRequestStatus(
   requestId: string,
   next: RequestStatus

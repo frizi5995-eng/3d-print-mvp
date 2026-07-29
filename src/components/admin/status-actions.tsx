@@ -9,10 +9,9 @@ import {
   markWaitingForPartner,
   prepareQuote,
   changeRequestStatus,
-  NEXT_ACTION_LABELS,
   type ActionResult,
 } from "@/app/admin/(protected)/requests/[id]/actions";
-import { STATUS_LABELS } from "@/lib/constants";
+import { STATUS_LABELS, NEXT_ACTION_LABELS } from "@/lib/constants";
 import type { PaymentStatus, RequestStatus } from "@/types";
 
 // One step back only, mirrors WORKFLOW_TRANSITIONS server-side (that map is
