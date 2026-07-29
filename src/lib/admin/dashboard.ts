@@ -103,7 +103,7 @@ export async function getDashboardData(range: DashboardRange) {
   let periodQuery = supabase
     .from("manufacturing_requests")
     .select(
-      "status, created_at, customer_manufacturing_price, customer_shipping_price, production_cost, production_shipping_cost, other_cost, quote_token, material"
+      "status, payment_status, created_at, customer_manufacturing_price, customer_shipping_price, production_cost, production_shipping_cost, other_cost, quote_token, material"
     );
   if (rangeStart) periodQuery = periodQuery.gte("created_at", rangeStart);
   const { data: periodRows } = await periodQuery;
@@ -133,6 +133,10 @@ export async function getDashboardData(range: DashboardRange) {
   let acceptedCostedCount = 0;
   const marginPercents: number[] = [];
   let quotesPrepared = 0;
+  let paidRevenue = 0;
+  let paidInternalCost = 0;
+  let paidCostedCount = 0;
+  let paidCount = 0;
   const requestsByDay = new Map<string, number>();
   const acceptedByDay = new Map<string, number>();
   const declinedByDay = new Map<string, number>();
@@ -180,6 +184,28 @@ export async function getDashboardData(range: DashboardRange) {
         if (totals.marginPercent !== null) marginPercents.push(totals.marginPercent);
       }
     }
+
+    // Business snapshot uses actual confirmed payment, not just "accepted" —
+    // an accepted-but-unpaid order isn't real revenue yet.
+    if (row.payment_status === "paid") {
+      paidCount += 1;
+      if (hasCustomerPrice) {
+        paidRevenue += row.customer_manufacturing_price! + row.customer_shipping_price!;
+        const hasFullCosting =
+          row.production_cost !== null && row.production_shipping_cost !== null && row.other_cost !== null;
+        if (hasFullCosting) {
+          const totals = computeTotals({
+            productionCost: row.production_cost,
+            productionShippingCost: row.production_shipping_cost,
+            otherCost: row.other_cost,
+            customerManufacturingPrice: row.customer_manufacturing_price,
+            customerShippingPrice: row.customer_shipping_price,
+          });
+          paidInternalCost += totals.internalCost;
+          paidCostedCount += 1;
+        }
+      }
+    }
   }
 
   const accepted = byStatus.accepted;
@@ -198,8 +224,16 @@ export async function getDashboardData(range: DashboardRange) {
   const dayKeysInOrder = Array.from(allDayKeys).sort();
   const dayLabel = (key: string) => formatDate(`${key}T12:00:00Z`);
 
-  const [newest, needingAttention, oldestOpen, quotesExpiringSoon, awaitingManufacturing, awaitingShipment, suspicious] =
-    await Promise.all([
+  const [
+    newest,
+    needingAttention,
+    oldestOpen,
+    quotesExpiringSoon,
+    acceptedUnpaid,
+    paidReadyForManufacturing,
+    awaitingShipment,
+    suspicious,
+  ] = await Promise.all([
       supabase
         .from("manufacturing_requests")
         .select(SUMMARY_COLUMNS)
@@ -230,6 +264,14 @@ export async function getDashboardData(range: DashboardRange) {
         .from("manufacturing_requests")
         .select(SUMMARY_COLUMNS)
         .eq("status", "accepted")
+        .neq("payment_status", "paid")
+        .order("updated_at", { ascending: true })
+        .limit(5),
+      supabase
+        .from("manufacturing_requests")
+        .select(SUMMARY_COLUMNS)
+        .eq("status", "accepted")
+        .eq("payment_status", "paid")
         .order("updated_at", { ascending: true })
         .limit(5),
       supabase
@@ -270,6 +312,13 @@ export async function getDashboardData(range: DashboardRange) {
           ? marginPercents.reduce((a, b) => a + b, 0) / marginPercents.length
           : null,
     },
+    business: {
+      quotesSent: quotesPrepared,
+      accepted,
+      paid: paidCount,
+      paidRevenue: paidCount > 0 ? paidRevenue : null,
+      paidGrossProfit: paidCostedCount > 0 ? paidRevenue - paidInternalCost : null,
+    },
     conversion: {
       requests: rows.length,
       quotesPrepared,
@@ -305,7 +354,8 @@ export async function getDashboardData(range: DashboardRange) {
       needingAttention: (needingAttention.data ?? []).map(toSummary),
       oldestOpen: (oldestOpen.data ?? []).map(toSummary),
       quotesExpiringSoon: (quotesExpiringSoon.data ?? []).map(toSummary),
-      awaitingManufacturing: (awaitingManufacturing.data ?? []).map(toSummary),
+      acceptedUnpaid: (acceptedUnpaid.data ?? []).map(toSummary),
+      paidReadyForManufacturing: (paidReadyForManufacturing.data ?? []).map(toSummary),
       awaitingShipment: (awaitingShipment.data ?? []).map(toSummary),
       suspicious: (suspicious.data ?? []).map(toSummary),
     },

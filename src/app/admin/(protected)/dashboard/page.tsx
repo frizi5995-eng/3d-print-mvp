@@ -60,7 +60,7 @@ export default async function AdminDashboardPage({
       </Panel>
 
       {/* Financial + conversion */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Panel title="Financial">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <StatTile label="Quoted revenue" value={eur(data.financial.quotedRevenue)} />
@@ -79,6 +79,26 @@ export default async function AdminDashboardPage({
             />
             <StatTile label="Avg. quote value" value={eur(data.financial.avgQuoteValue)} />
             <StatTile label="Avg. gross margin" value={pct(data.financial.avgGrossMargin)} />
+          </div>
+        </Panel>
+
+        <Panel title="Business snapshot (paid requests)">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <StatTile label="Quotes sent" value={String(data.business.quotesSent)} />
+            <StatTile label="Accepted" value={String(data.business.accepted)} tone="positive" />
+            <StatTile label="Paid" value={String(data.business.paid)} tone="positive" />
+            <StatTile label="Revenue (paid)" value={eur(data.business.paidRevenue)} tone="positive" />
+            <StatTile
+              label="Gross profit (paid)"
+              value={eur(data.business.paidGrossProfit)}
+              tone={
+                data.business.paidGrossProfit !== null
+                  ? data.business.paidGrossProfit >= 0
+                    ? "positive"
+                    : "negative"
+                  : undefined
+              }
+            />
           </div>
         </Panel>
 
@@ -150,8 +170,11 @@ export default async function AdminDashboardPage({
         <Panel title="Quotes expiring soon (48h)">
           <RequestSummaryList items={data.widgets.quotesExpiringSoon} emptyLabel="None expiring soon." />
         </Panel>
-        <Panel title="Accepted, awaiting manufacturing">
-          <RequestSummaryList items={data.widgets.awaitingManufacturing} emptyLabel="None waiting." />
+        <Panel title="Accepted, unpaid">
+          <RequestSummaryList items={data.widgets.acceptedUnpaid} emptyLabel="None waiting." />
+        </Panel>
+        <Panel title="Paid, ready for manufacturing">
+          <RequestSummaryList items={data.widgets.paidReadyForManufacturing} emptyLabel="None waiting." />
         </Panel>
         <Panel title="In manufacturing, awaiting shipment">
           <RequestSummaryList items={data.widgets.awaitingShipment} emptyLabel="None waiting." />
