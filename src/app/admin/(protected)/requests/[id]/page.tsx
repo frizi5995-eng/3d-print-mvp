@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Download, Mail, Phone } from "lucide-react";
 import { getRequestById, getCustomerRequestCounts } from "@/lib/admin/requests";
+import { getSettings } from "@/lib/admin/settings";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
 import { ModelViewer } from "@/components/model-viewer/model-viewer";
@@ -33,12 +34,13 @@ export default async function AdminRequestDetailPage({
   const history = result.history as unknown as StatusHistoryEntry[];
 
   const supabase = createServiceClient();
-  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts] = await Promise.all([
+  const [{ data: previewSigned }, { data: downloadSigned }, customerCounts, settings] = await Promise.all([
     supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
     supabase.storage
       .from(MODEL_STORAGE_BUCKET)
       .createSignedUrl(model.storage_path, 300, { download: model.filename }),
     getCustomerRequestCounts(request.customer_user_id, request.customer_email),
+    getSettings(),
   ]);
 
   return (
@@ -172,6 +174,7 @@ export default async function AdminRequestDetailPage({
           <Panel title="Production & customer quote">
             <PricingPanel
               requestId={request.id}
+              minMarginWarningPercent={settings.minMarginWarningPercent}
               initial={{
                 manufacturerName: request.manufacturer_name,
                 productionCost: request.production_cost,

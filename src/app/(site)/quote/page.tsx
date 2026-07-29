@@ -6,6 +6,7 @@ import { ProgressSteps } from "@/components/quote/progress-steps";
 import { Button } from "@/components/ui/button";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_STORAGE_BUCKET } from "@/lib/models";
+import { getSettings } from "@/lib/admin/settings";
 import type { ModelFileType } from "@/types";
 
 export default async function QuotePage({
@@ -25,9 +26,10 @@ export default async function QuotePage({
 
   if (!model) return <EmptyState />;
 
-  const { data: signed } = await supabase.storage
-    .from(MODEL_STORAGE_BUCKET)
-    .createSignedUrl(model.storage_path, 3600);
+  const [{ data: signed }, settings] = await Promise.all([
+    supabase.storage.from(MODEL_STORAGE_BUCKET).createSignedUrl(model.storage_path, 3600),
+    getSettings(),
+  ]);
 
   return (
     <Container className="py-8 sm:py-10">
@@ -56,7 +58,7 @@ export default async function QuotePage({
           <p className="mt-1 text-muted-foreground">
             Tell us how you&apos;d like this made. We&apos;ll review your model and send a quote.
           </p>
-          <QuoteForm modelId={model.id} />
+          <QuoteForm modelId={model.id} defaultMaterial={settings.defaultMaterial} />
         </div>
       </div>
     </Container>

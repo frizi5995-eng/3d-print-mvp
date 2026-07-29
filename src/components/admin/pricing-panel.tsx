@@ -23,6 +23,7 @@ function parseOrNull(value: string): number | null {
 export function PricingPanel({
   requestId,
   initial,
+  minMarginWarningPercent,
 }: {
   requestId: string;
   initial: {
@@ -33,6 +34,7 @@ export function PricingPanel({
     customerManufacturingPrice: number | null;
     customerShippingPrice: number | null;
   };
+  minMarginWarningPercent: number;
 }) {
   const [state, formAction, isPending] = useActionState(updatePricing, initialState);
 
@@ -138,6 +140,11 @@ export function PricingPanel({
               : undefined
           }
         />
+        {totals.marginPercent !== null && totals.marginPercent < minMarginWarningPercent && (
+          <p className="text-xs text-warning">
+            Below the {minMarginWarningPercent}% minimum margin warning threshold.
+          </p>
+        )}
       </div>
 
       {state.status === "error" && (

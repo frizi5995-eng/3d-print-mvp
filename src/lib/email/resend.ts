@@ -14,3 +14,7 @@ export async function getResendClient() {
   const { Resend } = await import("resend");
   return new Resend(apiKey);
 }
+
+export function isResendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY);
+}

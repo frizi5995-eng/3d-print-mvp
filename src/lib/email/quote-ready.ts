@@ -16,9 +16,13 @@ export interface QuoteReadyEmailParams {
   total: number;
   expiresAt: string;
   quoteUrl: string;
+  /** From app_settings — falls back to defaults if not provided. */
+  supportEmail?: string;
+  companyDisplayName?: string;
 }
 
 function buildQuoteReadyEmail(params: QuoteReadyEmailParams) {
+  const companyName = params.companyDisplayName || "Fabrik";
   const subject = `Your manufacturing quote is ready — request #${params.referenceNumber}`;
   const text = [
     `Hi ${params.customerName},`,
@@ -30,6 +34,10 @@ function buildQuoteReadyEmail(params: QuoteReadyEmailParams) {
     "",
     `View and respond to your quote:`,
     params.quoteUrl,
+    "",
+    `Questions? Contact ${params.supportEmail || "us"}.`,
+    "",
+    companyName,
   ].join("\n");
   return { subject, text };
 }

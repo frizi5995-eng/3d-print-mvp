@@ -20,7 +20,13 @@ import { createManufacturingRequest, type CreateRequestState } from "@/app/(site
 
 const initialState: CreateRequestState = {};
 
-export function QuoteForm({ modelId }: { modelId: string }) {
+export function QuoteForm({
+  modelId,
+  defaultMaterial = "PLA",
+}: {
+  modelId: string;
+  defaultMaterial?: string;
+}) {
   const [state, formAction, isPending] = useActionState(createManufacturingRequest, initialState);
   const [quantity, setQuantity] = useState(1);
   const [color, setColor] = useState<string>("White");
@@ -73,7 +79,7 @@ export function QuoteForm({ modelId }: { modelId: string }) {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="material">Material</Label>
-            <Select name="material" defaultValue="PLA">
+            <Select name="material" defaultValue={defaultMaterial}>
               <SelectTrigger id="material" className="w-full">
                 <SelectValue />
               </SelectTrigger>

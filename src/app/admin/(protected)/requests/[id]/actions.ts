@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAppUrl } from "@/lib/env";
 import { sendQuoteReadyEmail } from "@/lib/email/quote-ready";
 import { logAdminActivity } from "@/lib/admin/activity-log";
+import { getSettings } from "@/lib/admin/settings";
 import type { RequestStatus } from "@/types";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -197,8 +198,6 @@ export async function changeRequestStatus(
   return { ok: true };
 }
 
-const QUOTE_VALIDITY_DAYS = 7;
-
 export async function prepareQuote(requestId: string): Promise<ActionResult> {
   const admin = await requireAdminUser();
 
@@ -223,12 +222,13 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
     return { ok: false, error: "Customer details are incomplete." };
   }
 
+  const settings = await getSettings();
   const update: Record<string, string> = { status: "quote_ready" };
 
   if (!request.quote_token) {
     update.quote_token = randomBytes(32).toString("base64url");
     const expires = new Date();
-    expires.setDate(expires.getDate() + QUOTE_VALIDITY_DAYS);
+    expires.setDate(expires.getDate() + settings.quoteValidityDays);
     update.quote_expires_at = expires.toISOString();
   }
 
@@ -257,6 +257,8 @@ export async function prepareQuote(requestId: string): Promise<ActionResult> {
     total: request.customer_manufacturing_price + request.customer_shipping_price,
     expiresAt: finalExpiresAt,
     quoteUrl: `${getAppUrl()}/q/${finalToken}`,
+    supportEmail: settings.supportEmail,
+    companyDisplayName: settings.companyDisplayName,
   }).catch((err: unknown): { sent: false; reason: "error"; message: string } => ({
     sent: false,
     reason: "error",
@@ -302,6 +304,7 @@ export async function resendQuoteEmail(requestId: string): Promise<ActionResult>
     return { ok: false, error: "Customer pricing is missing." };
   }
 
+  const settings = await getSettings();
   const emailResult = await sendQuoteReadyEmail({
     customerName: request.customer_name,
     customerEmail: request.customer_email,
@@ -309,6 +312,8 @@ export async function resendQuoteEmail(requestId: string): Promise<ActionResult>
     total: request.customer_manufacturing_price + request.customer_shipping_price,
     expiresAt: request.quote_expires_at,
     quoteUrl: `${getAppUrl()}/q/${request.quote_token}`,
+    supportEmail: settings.supportEmail,
+    companyDisplayName: settings.companyDisplayName,
   }).catch((err: unknown): { sent: false; reason: "error"; message: string } => ({
     sent: false,
     reason: "error",
@@ -352,8 +357,9 @@ export async function extendQuoteExpiry(requestId: string): Promise<ActionResult
     return { ok: false, error: "No active quote to extend." };
   }
 
+  const { quoteValidityDays } = await getSettings();
   const newExpiry = new Date();
-  newExpiry.setDate(newExpiry.getDate() + QUOTE_VALIDITY_DAYS);
+  newExpiry.setDate(newExpiry.getDate() + quoteValidityDays);
 
   const { error } = await supabase
     .from("manufacturing_requests")
@@ -366,7 +372,7 @@ export async function extendQuoteExpiry(requestId: string): Promise<ActionResult
     new_expiry: newExpiry.toISOString(),
   });
   revalidatePath(`/admin/requests/${requestId}`);
-  return { ok: true, message: `Quote extended by ${QUOTE_VALIDITY_DAYS} days.` };
+  return { ok: true, message: `Quote extended by ${quoteValidityDays} days.` };
 }
 
 export interface NotesFormState {
